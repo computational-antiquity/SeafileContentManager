@@ -7,7 +7,7 @@ import nbformat
 
 from notebook.services.contents.manager import ContentsManager
 
-class SeafileContentManager(FilesContentsManager):
+class SeafileContentManager(ContentsManager):
     """
     A replacement ContentsManager for Jupyter Notebooks to use Seafiles WebAPI v2.
     Assumes three env variables set:
@@ -18,11 +18,13 @@ class SeafileContentManager(FilesContentsManager):
 
     """
     def __init__(self, *args, **kwargs ):
-        seafileAPIURL = os.environ.get('SEAFILE_API_URL','')
+        # API URL
+        seafileAPIURL = os.environ.get('SEAFILE_API_URL', '')
         if seafileAPIURL != '':
             pass
         else:
             raise ValueError("Please set the SEAFILE_API_URL environment variable")
+        # Token
         token = os.environ.get('SEAFILE_ACCESS_TOKEN','')
         if token != '':
             pass
@@ -31,7 +33,12 @@ class SeafileContentManager(FilesContentsManager):
         self.authHeader = {"Authorization":"Token {0}".format(token)}
         res = requests.get(seafileAPIURL + '/auth/ping/', headers = self.authHeader)
         assert res.text == '"pong"', 'Wrong token {0}, cannot access API at {1}.'.format(token,seafileAPIURL)
-
+        # Destination library
+        libraryName = os.environ.get('SEAFILE_LIBRARY', '')
+        if libraryName != '':
+            pass
+        else:
+            raise ValueError("Please set the SEAFILE_LIBRARY environment variable")
         resLib = requests.get(seafileAPIURL + '/repos/', headers = self.authHeader)
         idList = [x['id'] for x in resLib.json() if x['name'] == libraryName]
         assert 0 < len(idList) < 2, 'Cannot find specified library: {0}'.format(libraryName)
@@ -76,7 +83,7 @@ class SeafileContentManager(FilesContentsManager):
         return retDir
 
 
-    def getFileModel(self, filePath):
+    def getFileModel(self, filePath, content = True):
         file = self.makeRequest('/file/detail/?p={0}'.format(filePath)).json()
         retFile = {}
         dlLink = self.makeRequest('/file/?p={0}'.format(filePath))
@@ -85,6 +92,7 @@ class SeafileContentManager(FilesContentsManager):
         retFile['name'] = file['name']
         retFile['path'] = filePath.lstrip('/')
         retFile['created'] = datetime.datetime.fromtimestamp(file['mtime'])
+        retFile['content'] = None
         try:
             fileType = file['name'].split('.')[1]
         except:
@@ -92,17 +100,20 @@ class SeafileContentManager(FilesContentsManager):
         if fileType in ['txt','md']:
             retFile['format'] = 'text'
             retFile['mimetype'] = 'text/plain'
-            retFile['content'] = fileData.content.decode('utf8')
+            if content:
+                retFile['content'] = fileData.content.decode('utf8')
         elif fileType == 'ipynb':
             retFile['format'] = 'json'
             retFile['mimetype'] = None
-            cont = nbformat.reads(fileData.content.decode('utf8'),as_version=4)
-            retFile['content'] = cont
+            if content:
+                cont = nbformat.reads(fileData.content.decode('utf8'),as_version=4)
+                retFile['content'] = cont
 
         else:
             retFile['format'] = 'base64'
             retFile['mimetype'] = 'application/octet-stream'
-            retFile['content'] = fileData.content.decode('utf8')
+            if content:
+                retFile['content'] = fileData.content.decode('utf8')
         return retFile
 
     def operateOnFile(self,filePath, action, params=False):
@@ -137,14 +148,30 @@ class SeafileContentManager(FilesContentsManager):
         else:
             raise ValueError('Cannot find object: {0}'.format(path))
 
-    def file_exists(self, path=''):
-        pass
+    def file_exists(self, path):
+        res = self.makeRequest('/file/history/?p={0}'.format(path))
+        if res.status_code == 404:
+            return False
+        elif res.status_code == 200:
+            return True
 
-    def exists(self, path):
-        pass
+
 
     def get(self, path, content=True, type=None, format=None):
-        pass
+        try:
+            fileTrue = path.split('/')[-1].split('.')[1]
+        except:
+            fileTrue = ''
+        if fileTrue:
+            try:
+                return self.getFileModel(path, content)
+            except:
+                return self.getDirModel(path)
+        else:
+            try:
+                return self.getDirModel(path)
+            except:
+                return self.getFileModel(path, content)
 
     def save(self, model, path):
         pass
@@ -153,4 +180,8 @@ class SeafileContentManager(FilesContentsManager):
         pass
 
     def rename_file(self, old_path, new_path):
-        pass
+        res = self.operateOnFile(old_path, 'rename',('newname', new_path))
+        if res.status_code in [301, 404]:
+            return
+        else:
+            raise AttributeError('Operation failed, returned {0}'.format(res.status_code))
