@@ -79,7 +79,13 @@ class SeafileContentManager(ContentsManager):
             res['mimetype'] = None
             res['content'] = None
             fileList.append(res)
-        retDir = {'content': fileList, 'format': 'json', 'mimetype': None}
+        #TODO: Replace dummy values! Add keys to files
+        # Missing Model Keys: {'last_modified', 'writable'}
+        retDir = {
+            'content': fileList, 'format': 'json', 'mimetype': None,
+            'type':'dir','name':'testen','writable':True,'last_modified':12,
+            'path':path, 'created':11
+            }
         return retDir
 
 
@@ -139,7 +145,7 @@ class SeafileContentManager(ContentsManager):
             pass
 
     def is_hidden(self, path):
-        if allow_hidden:
+        if self.allow_hidden:
             return False
         objects = path.split('/')
         obj = objects[-1]
