@@ -139,6 +139,8 @@ class SeafileContentManager(ContentsManager):
             pass
 
     def is_hidden(self, path):
+        if allow_hidden:
+            return False
         objects = path.split('/')
         obj = objects[-1]
         if obj and obj.startswith('.'):
@@ -146,7 +148,8 @@ class SeafileContentManager(ContentsManager):
         elif obj:
             return False
         else:
-            raise ValueError('Cannot find object: {0}'.format(path))
+            return False
+            #raise ValueError('Cannot find object: {0}'.format(path))
 
     def file_exists(self, path):
         res = self.makeRequest('/file/history/?p={0}'.format(path))
