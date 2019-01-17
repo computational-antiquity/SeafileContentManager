@@ -214,7 +214,6 @@ class SeafileContentManager(ContentsManager):
             pass
 
     def is_hidden(self, path):
-<<<<<<< HEAD
         try:
             objects = path.split('/')
         except:
@@ -222,16 +221,6 @@ class SeafileContentManager(ContentsManager):
                 objects = path['Referer'].split('/')
             except:
                 raise ValueError("Cannot understand path: {0}".format(path))
-=======
-        ## Root folder should never be hidden...
-        if self.allow_hidden:
-            return False
-        elif path == "/":
-            return False
-        elif path == "":
-            return False
-        objects = path.split('/')
->>>>>>> d2435cacb62767b2b40919d1781d30088a61be42
         obj = objects[-1]
         if obj and obj.startswith('.'):
             return True
@@ -249,16 +238,7 @@ class SeafileContentManager(ContentsManager):
             return True
 
     def get(self, path, content=True, type=None, format=None):
-<<<<<<< HEAD
-        self.log.info('Got path: {0}'.format(path))
-        try:
-            fileTrue = path.split('/')[-1].split('.')[1]
-        except:
-            fileTrue = ''
-        if fileTrue:
-=======
         if not type:
->>>>>>> d2435cacb62767b2b40919d1781d30088a61be42
             try:
                 fileTrue = path.split('/')[-1].split('.')[1]
             except:
