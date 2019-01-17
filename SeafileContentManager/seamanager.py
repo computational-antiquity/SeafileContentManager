@@ -15,17 +15,17 @@ class SeafileContentManager(ContentsManager):
     Assumes three env variables set:
 
         SEAFILE_ACCESS_TOKEN: see https://manual.seafile.com/develop/web_api.html#quick-start
-        SEAFILE_API_URL: e.g. https://sub.domain.com/api2
+        SEAFILE_URL: e.g. https://sub.domain.com
         SEAFILE_LIBRARY: Library name, ID is determined automatically for API calls
 
     """
     def __init__(self, *args, **kwargs ):
         # API URL
-        seafileAPIURL = os.environ.get('SEAFILE_API_URL', '')
-        if seafileAPIURL != '':
+        self.seafileURL = os.environ.get('SEAFILE_URL', '')
+        if self.seafileURL != '':
             pass
         else:
-            raise ValueError("Please set the SEAFILE_API_URL environment variable")
+            raise ValueError("Please set the SEAFILE_URL environment variable")
         # Token
         token = os.environ.get('SEAFILE_ACCESS_TOKEN','')
         if token != '':
@@ -33,23 +33,22 @@ class SeafileContentManager(ContentsManager):
         else:
             raise ValueError("Please set the SEAFILE_ACCESS_TOKEN environment variable")
         self.authHeader = {"Authorization":"Token {0}".format(token)}
-        res = requests.get(seafileAPIURL + '/auth/ping/', headers = self.authHeader)
-        assert res.text == '"pong"', 'Wrong token {0}, cannot access API at {1}.'.format(token,seafileAPIURL)
+        res = requests.get(self.seafileURL + '/api2/auth/ping/', headers = self.authHeader)
+        assert res.text == '"pong"', 'Wrong token {0}, cannot access API at {1}.'.format(token, self.seafileURL + '/api2')
         # Destination library
         libraryName = os.environ.get('SEAFILE_LIBRARY', '')
         if libraryName != '':
             pass
         else:
             raise ValueError("Please set the SEAFILE_LIBRARY environment variable")
-        resLib = requests.get(seafileAPIURL + '/repos/', headers = self.authHeader)
+        resLib = requests.get(self.seafileURL + '/api2/repos/', headers = self.authHeader)
         idList = [x['id'] for x in resLib.json() if x['name'] == libraryName]
         assert 0 < len(idList) < 2, 'Cannot find specified library: {0}'.format(libraryName)
 
-        self.serverInfo = requests.get(seafileAPIURL + '/server-info').json()
+        self.serverInfo = requests.get(self.seafileURL + '/api2/server-info').json()
 
         self.libraryID = idList[0]
         self.libraryName = libraryName
-        self.baseURL = seafileAPIURL + '/repos/{0}'.format(self.libraryID)
 
         self.baseModel = {
             'name': "",
@@ -62,9 +61,34 @@ class SeafileContentManager(ContentsManager):
             'size': ""
         }
 
-    def makeRequest(self, apiPath):
-        url = self.baseURL + apiPath
+    def baseURL(self, apiVersion='/api2'):
+        return self.seafileURL + apiVersion +  '/repos/{0}'.format(self.libraryID)
+
+    def makeRequest(self, apiPath, apiVersion='/api2'):
+        url = self.baseURL(apiVersion) + apiPath
         res = requests.get(url, headers = self.authHeader)
+        return res
+
+    def postRequest(self, path, apiVersion="/api2", action=False, params=False):
+        url = self.baseURL(apiVersion) + path
+        data = {}
+        if action:
+            data = {'operation':action}
+        if params:
+            for parSet in params:
+                data[parSet[0]] = parSet[1]
+        if data != {}:
+            res = requests.post(url, headers = self.authHeader, data=data)
+        else:
+            res = requests.post(url, headers = self.authHeader)
+        return res
+
+    def operateOnFile(self,filePath, action, params=False):
+        res = self.postRequest(path='/file/?p={0}'.format(filePath), action=action, params=params)
+        return res
+
+    def operateOnDir(self,dirPath, action, params=False):
+        res = self.postRequest(path='/dir/?p={0}'.format(dirPath), action=action, params=params)
         return res
 
     def getDirModel(self, path, content=True):
@@ -114,7 +138,6 @@ class SeafileContentManager(ContentsManager):
             }
         return retDir
 
-
     def getFileModel(self, filePath, content = True):
         file = self.makeRequest('/file/detail/?p={0}'.format(filePath)).json()
         retFile = {}
@@ -158,36 +181,6 @@ class SeafileContentManager(ContentsManager):
             if content:
                 retFile['content'] = fileData.content.decode('utf8')
         return retFile
-
-    def postRequest(self, path, action=False, params=False):
-        url = self.baseURL + path
-        if action:
-            data = {'operation':action}
-        if params:
-            for parSet in params:
-                data[parSet[0]] = parSet[1]
-        res = requests.post(url, headers = self.authHeader, data=data)
-        return res
-
-    def operateOnFile(self,filePath, action, params=False):
-        res = self.postRequest('/file/?p={0}'.format(filePath), action, params)
-        # url = self.baseURL + '/file/?p={0}'.format(filePath)
-        # data = {'operation':action}
-        # if params:
-        #     for parSet in params:
-        #         data[parSet[0]] = parSet[1]
-        # res = requests.post(url, headers = self.authHeader, data=data)
-        return res
-
-    def operateOnDir(self,dirPath, action, params=False):
-        res = self.postRequest('/dir/?p={0}'.format(dirPath), action, params)
-        # url = self.baseURL + '/dir/?p={0}'.format(dirPath)
-        # data = {'operation':action}
-        # if params:
-        #     for parSet in params:
-        #         data[parSet[0]] = parSet[1]
-        # res = requests.post(url, headers = self.authHeader, data=data)
-        return res
 
     def deleteObject(self, path, type):
         if path == "/" or path == "":
@@ -243,6 +236,8 @@ class SeafileContentManager(ContentsManager):
             return False
         elif res.status_code == 200:
             return True
+        elif res.status_code == 400:
+            raise web.HTTPError(400, u'Invalid path')
 
     def get(self, path, content=True, type=None, format=None):
         if not type:
@@ -290,7 +285,7 @@ class SeafileContentManager(ContentsManager):
                     self.operateOnFile('/' + path, 'create')
                 else:
                     upload_link = self.makeRequest('/upload-link/').json()
-                    res = self.postRequest(upload_link,
+                    res = requests.post(upload_link,
                         data={'filename':filename, 'parent_dir': filepath},
                         files={'file': nbformat.from_dict(model['content'])})
                     self.log.debug('{0}:{1}'.format(res.status_code,res.text))
