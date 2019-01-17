@@ -87,11 +87,19 @@ class SeafileContentManager(ContentsManager):
         file = self.makeRequest('/file/detail/?p={0}'.format(filePath)).json()
         retFile = {}
         dlLink = self.makeRequest('/file/?p={0}'.format(filePath))
-        fileData = requests.get(dlLink.json())
+        if not "error_msg" in dlLink.json().keys():
+            fileData = requests.get(dlLink.json())
+
         retFile['type'] = 'file'
-        retFile['name'] = file['name']
+        try:
+            retFile['name'] = file['name']
+        except:
+            retFile['name'] = ''
         retFile['path'] = filePath.lstrip('/')
-        retFile['created'] = datetime.datetime.fromtimestamp(file['mtime'])
+        try:
+            retFile['created'] = datetime.datetime.fromtimestamp(file['mtime'])
+        except:
+            retFile['created'] = datetime.datetime.now()
         retFile['content'] = None
         try:
             fileType = file['name'].split('.')[1]
@@ -139,14 +147,21 @@ class SeafileContentManager(ContentsManager):
             pass
 
     def is_hidden(self, path):
-        objects = path.split('/')
+        try:
+            objects = path.split('/')
+        except:
+            try:
+                objects = path['Referer'].split('/')
+            except:
+                raise ValueError("Cannot understand path: {0}".format(path))
         obj = objects[-1]
         if obj and obj.startswith('.'):
             return True
         elif obj:
             return False
         else:
-            raise ValueError('Cannot find object: {0}'.format(path))
+            return False
+            #raise ValueError('Cannot find object: {0}'.format(path))
 
     def file_exists(self, path):
         res = self.makeRequest('/file/history/?p={0}'.format(path))
@@ -158,6 +173,7 @@ class SeafileContentManager(ContentsManager):
 
 
     def get(self, path, content=True, type=None, format=None):
+        self.log.info('Got path: {0}'.format(path))
         try:
             fileTrue = path.split('/')[-1].split('.')[1]
         except:
