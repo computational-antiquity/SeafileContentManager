@@ -119,7 +119,7 @@ class SeafileContentManager(ContentsManager):
         file = self.makeRequest('/file/detail/?p={0}'.format(filePath)).json()
         retFile = {}
         dlLink = self.makeRequest('/file/?p={0}'.format(filePath))
-        if not "error_msg" in dlLink.json().keys():
+        if not "error_msg" in dlLink.json():
             fileData = requests.get(dlLink.json())
 
         retFile['type'] = 'file'
@@ -214,6 +214,13 @@ class SeafileContentManager(ContentsManager):
             pass
 
     def is_hidden(self, path):
+         ## Root folder should never be hidden...
+        if self.allow_hidden:
+            return False
+        elif path == "/":
+            return False
+        elif path == "":
+            return False
         try:
             objects = path.split('/')
         except:
