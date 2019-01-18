@@ -141,10 +141,10 @@ class SeafileContentManager(ContentsManager):
     def getFileModel(self, filePath, content = True):
         file = self.makeRequest('/file/detail/?p={0}'.format(filePath)).json()
         retFile = {}
+        fileData = ""
         dlLink = self.makeRequest('/file/?p={0}'.format(filePath))
         if not "error_msg" in dlLink.json():
             fileData = requests.get(dlLink.json())
-
         retFile['type'] = 'file'
         try:
             retFile['name'] = file['name']
@@ -152,13 +152,23 @@ class SeafileContentManager(ContentsManager):
             retFile['name'] = ''
         retFile['path'] = filePath.lstrip('/')
         try:
-            retFile['created'] = datetime.datetime.fromtimestamp(file['mtime'])
+            timestamp = ''.join(file['upload_time'].rsplit(':', 1))
+            retFile['created'] = datetime.datetime.strptime(timestamp,'%Y-%m-%dT%H:%M:%S%z')
         except:
             retFile['created'] = datetime.datetime.now()
-        retFile['content'] = None
-        # TODO: replace Dummy values
-        retFile['last_modified'] = 12
-        retFile['writable'] = True
+        if fileData:
+            retFile['content'] = fileData
+        try:
+            retFile['last_modified'] = datetime.datetime.fromtimestamp(file['mtime'])
+        except:
+            retFile['last_modified'] = datetime.datetime.now()
+        try:
+            if file['permission'] == 'rw':
+                retFile['writable'] = True
+            else:
+                retFile['writable'] = False
+        except:
+            retFile['writable'] = True
         try:
             fileType = file['name'].split('.')[-1]
         except:
@@ -173,7 +183,7 @@ class SeafileContentManager(ContentsManager):
             retFile['format'] = 'json'
             retFile['mimetype'] = None
             if content:
-                cont = nbformat.reads(fileData.content.decode('utf8'), as_version=4)
+                cont = nbformat.from_dict(fileData.json())
                 retFile['content'] = cont
         else:
             retFile['format'] = 'base64'
@@ -186,9 +196,9 @@ class SeafileContentManager(ContentsManager):
         if path == "/" or path == "":
             raise web.HTTPError(400,u'Cannot delete root folder.')
         if type == 'dir':
-            url = self.baseURL + '/dir/?p={0}'.format(path)
+            url = self.baseURL() + '/dir/?p={0}'.format(path)
         elif type == 'file':
-            url = self.baseURL + '/file/?p={0}'.format(path)
+            url = self.baseURL() + '/file/?p={0}'.format(path)
         res = requests.delete(url, headers = self.authHeader)
         return res
 
@@ -262,6 +272,22 @@ class SeafileContentManager(ContentsManager):
                 ret =  self.getFileModel(path, content)
         return ret
 
+    def fileUpload(self, filename, filepath, modelContent, replace=True):
+        upload_link = self.makeRequest('/upload-link/').json()
+        if replace:
+            replace = 1
+        else:
+            replace = 0
+        res = requests.post(upload_link,
+            data={
+                'filename':filename,
+                'parent_dir': filepath,
+                'replace': replace
+            },
+            files={'file':(filename,modelContent)})
+        self.log.debug('{0}:{1}'.format(res.status_code,res.text))
+        return res
+
     def save(self, model, path=""):
         path = path.strip("/")
 
@@ -275,44 +301,35 @@ class SeafileContentManager(ContentsManager):
         type = model['type']
 
         filename = path.split('/')[-1]
-        filepath = '/'.join(path.split('/')[:-1])
+        filepath = '/'.join(path.split('/')[:-1]) + '/'
 
         try:
             if model['type'] == "directory":
                 self.operateOnDir('/' + path,'mkdir')
             elif model['type'] == "notebook":
                 if not self.file_exists('/' + path):
-                    self.operateOnFile('/' + path, 'create')
+                    self.fileUpload(filename, filepath, json.dumps(nbformat.v4.new_notebook()), replace=False)
                 else:
-                    upload_link = self.makeRequest('/upload-link/').json()
-                    res = requests.post(upload_link,
-                        data={'filename':filename, 'parent_dir': filepath},
-                        files={'file': nbformat.from_dict(model['content'])})
-                    self.log.debug('{0}:{1}'.format(res.status_code,res.text))
-                    #self.operateOnFile('/' + path, 'rename', [['newname', path.split('/')[-1] + '_old']])
+                    self.fileUpload(filename, filepath, json.dumps(model['content']))
             elif model['type'] == 'file':
                 if not self.file_exists('/' + path):
                     self.operateOnFile('/' + path, 'create')
                 else:
-                    self.operateOnFile('/' + path, 'rename',  [['newname',  + '_old']])
+                    self.fileUpload(filename, filepath, str.encode(model['content']))
         except web.HTTPError:
             raise
         except Exception as e:
             self.log.error(u'Error while saving file: %s %s', path, e, exc_info=True)
             raise web.HTTPError(500, u'Unexpected error while saving file: %s %s' % (path, e))
-
         validation_message = None
         if model['type'] == 'notebook':
             self.validate_notebook_model(model)
             validation_message = model.get('message', None)
-
         model = self.get(path, content=False, type=type)
-
         if validation_message:
             model['message'] = validation_message
-
         model['format'] = None
-
+        model['content'] = None
         return model
 
     def delete_file(self, path):
