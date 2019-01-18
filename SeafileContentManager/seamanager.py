@@ -140,24 +140,35 @@ class SeafileContentManager(ContentsManager):
 
     def getFileModel(self, filePath, content = True):
         file = self.makeRequest('/file/detail/?p={0}'.format(filePath)).json()
+
         retFile = {}
-        fileData = ""
-        dlLink = self.makeRequest('/file/?p={0}'.format(filePath))
-        if not "error_msg" in dlLink.json():
-            fileData = requests.get(dlLink.json())
+
+        retFile['path'] = filePath.lstrip('/')
+
+        try:
+            fileType = file['name'].split('.')[-1]
+        except:
+            fileType = ''
+
+        # if content:
+        #     fileData = ""
+        #     dlLink = self.makeRequest('/file/?p={0}'.format(filePath))
+        #     if not "error_msg" in dlLink.json():
+        #         fileDataReq = requests.get(dlLink.json())
+        #         try:
+        #             fileData = fileDataReq.json()
+        #         except:
+        #             raise web.HTTPError(404, 'Can not get data content: {0}.\nGot response {1}.' .format(filePath, fileDataReq.content))
         retFile['type'] = 'file'
         try:
             retFile['name'] = file['name']
         except:
             retFile['name'] = ''
-        retFile['path'] = filePath.lstrip('/')
         try:
             timestamp = ''.join(file['upload_time'].rsplit(':', 1))
             retFile['created'] = datetime.datetime.strptime(timestamp,'%Y-%m-%dT%H:%M:%S%z')
         except:
             retFile['created'] = datetime.datetime.now()
-        if fileData:
-            retFile['content'] = fileData
         try:
             retFile['last_modified'] = datetime.datetime.fromtimestamp(file['mtime'])
         except:
@@ -169,27 +180,49 @@ class SeafileContentManager(ContentsManager):
                 retFile['writable'] = False
         except:
             retFile['writable'] = True
-        try:
-            fileType = file['name'].split('.')[-1]
-        except:
-            fileType = ''
+
         if fileType in ['txt','md']:
             retFile['format'] = 'text'
             retFile['mimetype'] = 'text/plain'
             if content:
-                retFile['content'] = fileData.content.decode('utf8')
+                fileData = ""
+                dlLink = self.makeRequest('/file/?p={0}'.format(filePath))
+                if not "error_msg" in dlLink.json():
+                    fileDataReq = requests.get(dlLink.json())
+                    try:
+                        fileData = fileDataReq.text
+                    except:
+                        raise web.HTTPError(404, 'Can not get data content: {0}.\nGot response {1}.' .format(filePath, fileDataReq.text))
+                retFile['content'] = fileData # fileData.content.decode('utf8')
         elif fileType == 'ipynb':
             retFile['type'] = 'notebook'
             retFile['format'] = 'json'
             retFile['mimetype'] = None
             if content:
-                cont = nbformat.from_dict(fileData.json())
-                retFile['content'] = cont
+                fileData = ""
+                dlLink = self.makeRequest('/file/?p={0}'.format(filePath))
+                if not "error_msg" in dlLink.json():
+                    fileDataReq = requests.get(dlLink.json())
+                    try:
+                        fileData = nbformat.from_dict(fileDataReq.json())
+                    except:
+                        raise web.HTTPError(404, 'Can not get data content: {0}.\nGot response {1}.' .format(filePath, fileDataReq.content))
+                # cont = nbformat.from_dict(fileData.json())
+                retFile['content'] = fileData # cont
         else:
             retFile['format'] = 'base64'
             retFile['mimetype'] = 'application/octet-stream'
             if content:
-                retFile['content'] = fileData.content.decode('utf8')
+                fileData = ""
+                dlLink = self.makeRequest('/file/?p={0}'.format(filePath))
+                if not "error_msg" in dlLink.json():
+                    fileDataReq = requests.get(dlLink.json())
+                    try:
+                        fileData = fileDataReq.content
+                    except:
+                        raise web.HTTPError(404, 'Can not get data content: {0}.\nGot response {1}.' .format(filePath, fileDataReq.text))
+                retFile['content'] = fileData # .content.decode('utf8')
+
         return retFile
 
     def deleteObject(self, path, type):
