@@ -126,12 +126,25 @@ class SeafileContentManager(ContentsManager):
                 fileList = None
         else:
             fileList = None
+        try:
+            dirname = dirDetail['name']
+        except:
+            dirname = None
+        try:
+            dirdate = dirDetail['mtime']
+        except:
+            dirdate = datetime.datetime.now()
+        try:
+            dirsize = dirDetail['size']
+        except:
+            dirsize = None
+
         retDir = {
             'content': fileList, 'format': 'json', 'mimetype': None,
-            'type':'directory','name':dirDetail['name'],'writable':True,
+            'type':'directory','name': dirname,'writable':True,
             'last_modified':datetime.datetime.now(), 'path':path,
-            'created': datetime.datetime.fromtimestamp(dirDetail['mtime']),
-            'size': dirDetail['size']
+            'created': dirdate,
+            'size': dirsize
             }
         return retDir
 
@@ -378,7 +391,7 @@ class SeafileContentManager(ContentsManager):
         return
 
     def rename_file(self, old_path, new_path):
-        # rename file or folder 
+        # rename file or folder
         if new_path == old_path:
             return
         if self.file_exists(new_path):
