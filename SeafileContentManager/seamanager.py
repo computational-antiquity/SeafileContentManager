@@ -11,28 +11,29 @@ from notebook.services.contents.manager import ContentsManager
 
 class SeafileContentManager(ContentsManager):
     """
-    A replacement ContentsManager for Jupyter Notebooks to use Seafiles WebAPI v2.
+    A replacement ContentsManager for Jupyter Notebooks to use Seafiles WebAPI.
     Assumes three env variables set:
 
         SEAFILE_ACCESS_TOKEN: see https://manual.seafile.com/develop/web_api.html#quick-start
         SEAFILE_URL: e.g. https://sub.domain.com
-        SEAFILE_LIBRARY: Library name, ID is determined automatically for API calls
+        SEAFILE_LIBRARY: Library name, numerical ID is determined automatically for API calls
 
     """
     def __init__(self, *args, **kwargs ):
-        # API URL
+        # Seafile URL
         self.seafileURL = os.environ.get('SEAFILE_URL', '')
         if self.seafileURL != '':
             pass
         else:
             raise ValueError("Please set the SEAFILE_URL environment variable")
-        # Token
+        # Access Token
         token = os.environ.get('SEAFILE_ACCESS_TOKEN','')
         if token != '':
             pass
         else:
             raise ValueError("Please set the SEAFILE_ACCESS_TOKEN environment variable")
         self.authHeader = {"Authorization":"Token {0}".format(token)}
+        # check Authorization
         res = requests.get(self.seafileURL + '/api2/auth/ping/', headers = self.authHeader)
         assert res.text == '"pong"', 'Wrong token {0}, cannot access API at {1}.'.format(token, self.seafileURL + '/api2')
         # Destination library
@@ -43,33 +44,27 @@ class SeafileContentManager(ContentsManager):
             raise ValueError("Please set the SEAFILE_LIBRARY environment variable")
         resLib = requests.get(self.seafileURL + '/api2/repos/', headers = self.authHeader)
         idList = [x['id'] for x in resLib.json() if x['name'] == libraryName]
+        # check if idList has one element = library ID
         assert 0 < len(idList) < 2, 'Cannot find specified library: {0}'.format(libraryName)
-
+        # general information of seafile instance, not used yet
         self.serverInfo = requests.get(self.seafileURL + '/api2/server-info').json()
-
+        # basic settings
         self.libraryID = idList[0]
         self.libraryName = libraryName
 
-        self.baseModel = {
-            'name': "",
-            'path': "",
-            'last_modified': "",
-            'created': "",
-            'content': "",
-            'format': "",
-            'mimetype': "",
-            'size': ""
-        }
-
     def baseURL(self, apiVersion='/api2'):
+        # allows to use both API versions
         return self.seafileURL + apiVersion +  '/repos/{0}'.format(self.libraryID)
 
     def makeRequest(self, apiPath, apiVersion='/api2'):
+        # general GET requests form
         url = self.baseURL(apiVersion) + apiPath
         res = requests.get(url, headers = self.authHeader)
         return res
 
     def postRequest(self, path, apiVersion="/api2", action=False, params=False):
+        # general POST request form, allows parameters, and special 'actions', e.g
+        # delete, rename ...
         url = self.baseURL(apiVersion) + path
         data = {}
         if action:
@@ -84,15 +79,19 @@ class SeafileContentManager(ContentsManager):
         return res
 
     def operateOnFile(self,filePath, action, params=False):
+        # wrapper for file operations
         res = self.postRequest(path='/file/?p={0}'.format(filePath), action=action, params=params)
         return res
 
     def operateOnDir(self,dirPath, action, params=False):
+        # wrapper for dir operations
         res = self.postRequest(path='/dir/?p={0}'.format(dirPath), action=action, params=params)
         return res
 
     def getDirModel(self, path, content=True):
+        # return dir model with folder content as models without content
         files = self.makeRequest('/dir/?p={0}'.format(path)).json()
+        dirDetail = self.makeRequest('/dir/detail/?path={0}'.format(path),apiVersion='/api/v2.1').json()
         if content:
             try:
                 fileList = []
@@ -127,18 +126,17 @@ class SeafileContentManager(ContentsManager):
                 fileList = None
         else:
             fileList = None
-        ## Only sub-folder in fileList have a creation date.
-        ## Folder details (name, mtime, siz, etc) of current folder_path can
-        ## be obtained from api/v2.1 which is not allways implemented.
-        ## See https://manual.seafile.com/develop/web_api_v2.1.html#get-directory-detail
         retDir = {
             'content': fileList, 'format': 'json', 'mimetype': None,
-            'type':'directory','name':None,'writable':True,'last_modified':datetime.datetime.now(),
-            'path':path, 'created': datetime.datetime.now()
+            'type':'directory','name':dirDetail['name'],'writable':True,
+            'last_modified':datetime.datetime.now(), 'path':path,
+            'created': datetime.datetime.fromtimestamp(dirDetail['mtime']),
+            'size': dirDetail['size']
             }
         return retDir
 
     def getFileModel(self, filePath, content = True):
+        # return file model
         file = self.makeRequest('/file/detail/?p={0}'.format(filePath)).json()
 
         retFile = {}
@@ -150,15 +148,6 @@ class SeafileContentManager(ContentsManager):
         except:
             fileType = ''
 
-        # if content:
-        #     fileData = ""
-        #     dlLink = self.makeRequest('/file/?p={0}'.format(filePath))
-        #     if not "error_msg" in dlLink.json():
-        #         fileDataReq = requests.get(dlLink.json())
-        #         try:
-        #             fileData = fileDataReq.json()
-        #         except:
-        #             raise web.HTTPError(404, 'Can not get data content: {0}.\nGot response {1}.' .format(filePath, fileDataReq.content))
         retFile['type'] = 'file'
         try:
             retFile['name'] = file['name']
@@ -225,18 +214,8 @@ class SeafileContentManager(ContentsManager):
 
         return retFile
 
-    def deleteObject(self, path, type):
-        if path == "/" or path == "":
-            raise web.HTTPError(400,u'Cannot delete root folder.')
-        if type == 'dir':
-            url = self.baseURL() + '/dir/?p={0}'.format(path)
-        elif type == 'file':
-            url = self.baseURL() + '/file/?p={0}'.format(path)
-        res = requests.delete(url, headers = self.authHeader)
-        return res
-
-
     def dir_exists(self, path):
+        # check if dir exists, use status code from Seafile API
         res = self.makeRequest('/dir/?p=/{0}'.format(path))
         if res.status_code == 404:
             return False
@@ -263,7 +242,7 @@ class SeafileContentManager(ContentsManager):
             try:
                 objects = path['Referer'].split('/')
             except:
-                raise ValueError("Cannot understand path: {0}".format(path))
+                raise web.HTTPError(500, u"Cannot understand path: %s" % path)
         obj = objects[-1]
         if obj and obj.startswith('.'):
             return True
@@ -271,9 +250,9 @@ class SeafileContentManager(ContentsManager):
             return False
         else:
             return False
-            #raise ValueError('Cannot find object: {0}'.format(path))
 
     def file_exists(self, path):
+        # check if file exists, uses status code of Seafile API
         res = self.makeRequest('/file/history/?p={0}'.format(path))
         if res.status_code == 404:
             return False
@@ -283,6 +262,7 @@ class SeafileContentManager(ContentsManager):
             raise web.HTTPError(400, u'Invalid path')
 
     def get(self, path, content=True, type=None, format=None):
+        # get model of folder or file
         if not type:
             try:
                 fileTrue = path.split('/')[-1].split('.')[1]
@@ -306,6 +286,8 @@ class SeafileContentManager(ContentsManager):
         return ret
 
     def fileUpload(self, filename, filepath, modelContent, replace=True):
+        # wrapper for upload requests, first generates an upload link, then
+        # posts file details and model content
         upload_link = self.makeRequest('/upload-link/').json()
         if replace:
             replace = 1
@@ -322,6 +304,7 @@ class SeafileContentManager(ContentsManager):
         return res
 
     def save(self, model, path=""):
+        # save needs upload calls to Seafile API
         path = path.strip("/")
 
         if "type" not in model:
@@ -365,10 +348,37 @@ class SeafileContentManager(ContentsManager):
         model['content'] = None
         return model
 
+    def deleteObject(self, path, type):
+        # wrapper for delete operations, generates DELETE requests to Seafile API
+        if path == "/" or path == "":
+            raise web.HTTPError(400,u'Cannot delete root folder.')
+        if type == 'dir':
+            url = self.baseURL() + '/dir/?p={0}'.format(path)
+        elif type == 'file':
+            url = self.baseURL() + '/file/?p={0}'.format(path)
+        res = requests.delete(url, headers = self.authHeader)
+        return res
+
     def delete_file(self, path):
-        pass
+        # delete file or folder
+        try:
+            fileTrue = path.split('/')[-1].split('.')[1]
+        except:
+            fileTrue = ''
+        if fileTrue:
+            try:
+                ret =  self.deleteObject(path, type='file')
+            except:
+                raise web.HTTPError(u"Cannot delete file at %s" % path)
+        else:
+            try:
+                ret =  self.deleteObject(path, type='dir')
+            except:
+                raise web.HTTPError(u"Cannot delete folder at %s" % path)
+        return
 
     def rename_file(self, old_path, new_path):
+        # rename file or folder 
         if new_path == old_path:
             return
         if self.file_exists(new_path):
