@@ -43,7 +43,7 @@ To start Jupyter notebook from the activated environment run
 ```
 jupyter notebook \
   --NotebookApp.contents_manager_class=SeafileContentManager.SeafileContentManager \
-  --ContentsManager.checkpoints_class=SeafileContentManager.SeaCheckpoints \
+  --ContentsManager.checkpoints_class=SeafileContentManager.SeafileCheckpoints \
   --debug
 ```
 This should start Jupyter notebooks with the Seafile API

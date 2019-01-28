@@ -382,12 +382,12 @@ class SeafileContentManager(ContentsManager):
             try:
                 ret =  self.deleteObject(path, type='file')
             except:
-                raise web.HTTPError(u"Cannot delete file at %s" % path)
+                raise web.HTTPError(404, u"Cannot delete file at %s" % path)
         else:
             try:
                 ret =  self.deleteObject(path, type='dir')
             except:
-                raise web.HTTPError(u"Cannot delete folder at %s" % path)
+                raise web.HTTPError(404, u"Cannot delete folder at %s" % path)
         return
 
     def rename_file(self, old_path, new_path):

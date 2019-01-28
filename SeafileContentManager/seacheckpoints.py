@@ -11,10 +11,10 @@ from notebook.services.contents.checkpoints import Checkpoints, GenericCheckpoin
 
 from .seamanager import SeafileContentManager
 
-class SeaCheckpoints(GenericCheckpointsMixin, Checkpoints, SeafileContentManager):
+class SeafileCheckpoints(SeafileContentManager, GenericCheckpointsMixin):
     """
     A replacement Checkpoints Manager for Jupyter Notebooks to use the SeaFile
-    Commit History. 
+    Commit History.
     Assumes three env variables set:
 
         SEAFILE_ACCESS_TOKEN: see https://manual.seafile.com/develop/web_api.html#quick-start
@@ -23,12 +23,12 @@ class SeaCheckpoints(GenericCheckpointsMixin, Checkpoints, SeafileContentManager
 
     """
     def __init__(self):
-        super(SeaCheckpoints, self).__init__()
+        SeafileContentManager.__init__(self)
 
     def getRevision(self, checkpoint_id, path):
         reqResult = self.makeRequest('file/revision/?p={0}\&commit_id={1}'.format(path, checkpoint_id))
         if reqResult.status_code in [400,404]:
-            raise web.HTTPError(u"Cannot find checkpoint %s for path %s" % (checkpoint_id, path))
+            raise web.HTTPError(reqResult.status_code, u"Cannot find checkpoint %s for path %s" % (checkpoint_id, path))
         return reqResult
 
     # DUMMY METHODS: We use Seafiles internal commit history and have no active
@@ -83,12 +83,13 @@ class SeaCheckpoints(GenericCheckpointsMixin, Checkpoints, SeafileContentManager
         try:
             checkpoints = reqResult['data']
         except:
-            raise web.HTTPError(u'Cannot obtain checkpoints for %s' % path)
+            raise web.HTTPError(404, 'Cannot obtain checkpoints for {0}'.format(path))
         for elem in checkpoints:
+            timestamp = ''.join(elem['ctime'].rsplit(':', 1))
             ret.append(
                 {
                     'id':elem['commit_id'],
-                    'last_modified':datetime.datetime.fromtimestamp(elem['ctime'])
+                    'last_modified': datetime.datetime.strptime(timestamp,'%Y-%m-%dT%H:%M:%S%z')
                 }
             )
         return ret
