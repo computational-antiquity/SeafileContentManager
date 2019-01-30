@@ -10,14 +10,11 @@ What works?
 - Opening and saving text files (.txt,.md)
 - Creating new folder, file or notebook
 - Download
-
-What is partly working?
-- Duplicate creates new file with same name, without content.
+- Duplicate
+- Renaming
 
 What is not working?
-- Renaming folders, files, or notebooks
-- Moving files
-- Checkpoints
+- Moving files: Most likely an error in the source path definition
 
 ## Testing
 
