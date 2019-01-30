@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime
 import os
 import sys
 import requests
@@ -6,8 +6,12 @@ import json
 import nbformat
 
 from tornado import web
+from traitlets import Any, Unicode, Bool, TraitError, observe, default, validate
 
 from notebook.services.contents.manager import ContentsManager
+
+from .seacheckpoints import SeafileCheckpoints
+from .seafilemixin import getConnection
 
 class SeafileContentManager(ContentsManager):
     """
@@ -19,38 +23,18 @@ class SeafileContentManager(ContentsManager):
         SEAFILE_LIBRARY: Library name, numerical ID is determined automatically for API calls
 
     """
+    @default('checkpoints_class')
+    def _checkpoints_class_default(self):
+        return SeafileCheckpoints
+
     def __init__(self, *args, **kwargs ):
-        # Seafile URL
-        self.seafileURL = os.environ.get('SEAFILE_URL', '')
-        if self.seafileURL != '':
-            pass
-        else:
-            raise ValueError("Please set the SEAFILE_URL environment variable")
-        # Access Token
-        token = os.environ.get('SEAFILE_ACCESS_TOKEN','')
-        if token != '':
-            pass
-        else:
-            raise ValueError("Please set the SEAFILE_ACCESS_TOKEN environment variable")
-        self.authHeader = {"Authorization":"Token {0}".format(token)}
-        # check Authorization
-        res = requests.get(self.seafileURL + '/api2/auth/ping/', headers = self.authHeader)
-        assert res.text == '"pong"', 'Wrong token {0}, cannot access API at {1}.'.format(token, self.seafileURL + '/api2')
-        # Destination library
-        libraryName = os.environ.get('SEAFILE_LIBRARY', '')
-        if libraryName != '':
-            pass
-        else:
-            raise ValueError("Please set the SEAFILE_LIBRARY environment variable")
-        resLib = requests.get(self.seafileURL + '/api2/repos/', headers = self.authHeader)
-        idList = [x['id'] for x in resLib.json() if x['name'] == libraryName]
-        # check if idList has one element = library ID
-        assert 0 < len(idList) < 2, 'Cannot find specified library: {0}'.format(libraryName)
-        # general information of seafile instance, not used yet
-        self.serverInfo = requests.get(self.seafileURL + '/api2/server-info').json()
-        # basic settings
-        self.libraryID = idList[0]
-        self.libraryName = libraryName
+        retVals = getConnection()
+
+        self.seafileURL=retVals[0]
+        self.authHeader=retVals[1]
+        self.libraryID=retVals[2]
+        self.libraryName=retVals[3]
+        self.serverInfo=retVals[4]
 
     def baseURL(self, apiVersion='/api2'):
         # allows to use both API versions
@@ -62,10 +46,10 @@ class SeafileContentManager(ContentsManager):
         res = requests.get(url, headers = self.authHeader)
         return res
 
-    def postRequest(self, path, apiVersion="/api2", action=False, params=False):
+    def postRequest(self, apiPath, apiVersion="/api2", action=False, params=False):
         # general POST request form, allows parameters, and special 'actions', e.g
         # delete, rename ...
-        url = self.baseURL(apiVersion) + path
+        url = self.baseURL(apiVersion) + apiPath
         data = {}
         if action:
             data = {'operation':action}
@@ -78,26 +62,27 @@ class SeafileContentManager(ContentsManager):
             res = requests.post(url, headers = self.authHeader)
         return res
 
-    def operateOnFile(self,filePath, action, params=False):
+    def operateOnFile(self, filePath, action, apiVersion="/api2", params=False):
         # wrapper for file operations
-        res = self.postRequest(path='/file/?p={0}'.format(filePath), action=action, params=params)
+        res = self.postRequest(apiPath='/file/?p={0}'.format(filePath), action=action, params=params)
         return res
 
-    def operateOnDir(self,dirPath, action, params=False):
+    def operateOnDir(self, dirPath, action, apiVersion="/api2", params=False):
         # wrapper for dir operations
-        res = self.postRequest(path='/dir/?p={0}'.format(dirPath), action=action, params=params)
+        res = self.postRequest(apiPath='/dir/?p={0}'.format(dirPath), action=action, params=params)
         return res
 
-    def getDirModel(self, path, content=True):
+    def getDirModel(self, path, content=True, format=True):
         # return dir model with folder content as models without content
         files = self.makeRequest('/dir/?p={0}'.format(path)).json()
         dirDetail = self.makeRequest('/dir/detail/?path={0}'.format(path),apiVersion='/api/v2.1').json()
         if content:
+            dirFormat = 'json'
             try:
                 fileList = []
                 for fileDict in files:
                     res = {}
-                    res['last_modified'] = datetime.datetime.fromtimestamp(fileDict['mtime'])
+                    res['last_modified'] = datetime.fromtimestamp(fileDict['mtime'])
                     res['name'] = fileDict['name']
                     filepath =  path + '/' + fileDict['name']
                     res['path'] = filepath.lstrip('/')
@@ -126,6 +111,7 @@ class SeafileContentManager(ContentsManager):
                 fileList = None
         else:
             fileList = None
+            dirFormat = None
         try:
             dirname = dirDetail['name']
         except:
@@ -133,22 +119,22 @@ class SeafileContentManager(ContentsManager):
         try:
             dirdate = dirDetail['mtime']
         except:
-            dirdate = datetime.datetime.now()
+            dirdate = datetime.now()
         try:
             dirsize = dirDetail['size']
         except:
             dirsize = None
 
         retDir = {
-            'content': fileList, 'format': 'json', 'mimetype': None,
+            'content': fileList, 'format': dirFormat, 'mimetype': None,
             'type':'directory','name': dirname,'writable':True,
-            'last_modified':datetime.datetime.now(), 'path':path,
+            'last_modified':datetime.now(), 'path':path,
             'created': dirdate,
             'size': dirsize
             }
         return retDir
 
-    def getFileModel(self, filePath, content = True):
+    def getFileModel(self, filePath, content=True, format=None):
         # return file model
         file = self.makeRequest('/file/detail/?p={0}'.format(filePath)).json()
 
@@ -168,13 +154,13 @@ class SeafileContentManager(ContentsManager):
             retFile['name'] = ''
         try:
             timestamp = ''.join(file['upload_time'].rsplit(':', 1))
-            retFile['created'] = datetime.datetime.strptime(timestamp,'%Y-%m-%dT%H:%M:%S%z')
+            retFile['created'] = datetime.strptime(timestamp,'%Y-%m-%dT%H:%M:%S%z')
         except:
-            retFile['created'] = datetime.datetime.now()
+            retFile['created'] = datetime.now()
         try:
-            retFile['last_modified'] = datetime.datetime.fromtimestamp(file['mtime'])
+            retFile['last_modified'] = datetime.fromtimestamp(file['mtime'])
         except:
-            retFile['last_modified'] = datetime.datetime.now()
+            retFile['last_modified'] = datetime.now()
         try:
             if file['permission'] == 'rw':
                 retFile['writable'] = True
@@ -184,9 +170,10 @@ class SeafileContentManager(ContentsManager):
             retFile['writable'] = True
 
         if fileType in ['txt','md']:
-            retFile['format'] = 'text'
+            retFile['format'] = None
             retFile['mimetype'] = 'text/plain'
             if content:
+                retFile['format'] = 'text'
                 fileData = ""
                 dlLink = self.makeRequest('/file/?p={0}'.format(filePath))
                 if not "error_msg" in dlLink.json():
@@ -195,12 +182,15 @@ class SeafileContentManager(ContentsManager):
                         fileData = fileDataReq.text
                     except:
                         raise web.HTTPError(404, 'Can not get data content: {0}.\nGot response {1}.' .format(filePath, fileDataReq.text))
-                retFile['content'] = fileData # fileData.content.decode('utf8')
+                retFile['content'] = fileData
+            else:
+                retFile['content'] = None
         elif fileType == 'ipynb':
             retFile['type'] = 'notebook'
-            retFile['format'] = 'json'
+            retFile['format'] = None
             retFile['mimetype'] = None
             if content:
+                retFile['format'] = 'json'
                 fileData = ""
                 dlLink = self.makeRequest('/file/?p={0}'.format(filePath))
                 if not "error_msg" in dlLink.json():
@@ -209,12 +199,14 @@ class SeafileContentManager(ContentsManager):
                         fileData = nbformat.from_dict(fileDataReq.json())
                     except:
                         raise web.HTTPError(404, 'Can not get data content: {0}.\nGot response {1}.' .format(filePath, fileDataReq.content))
-                # cont = nbformat.from_dict(fileData.json())
-                retFile['content'] = fileData # cont
+                retFile['content'] = fileData
+            else:
+                retFile['content'] = None
         else:
-            retFile['format'] = 'base64'
+            retFile['format'] = None
             retFile['mimetype'] = 'application/octet-stream'
             if content:
+                retFile['format'] = 'base64'
                 fileData = ""
                 dlLink = self.makeRequest('/file/?p={0}'.format(filePath))
                 if not "error_msg" in dlLink.json():
@@ -223,8 +215,9 @@ class SeafileContentManager(ContentsManager):
                         fileData = fileDataReq.content
                     except:
                         raise web.HTTPError(404, 'Can not get data content: {0}.\nGot response {1}.' .format(filePath, fileDataReq.text))
-                retFile['content'] = fileData # .content.decode('utf8')
-
+                retFile['content'] = fileData
+            else:
+                retFile['content'] = None
         return retFile
 
     def dir_exists(self, path):
@@ -276,6 +269,7 @@ class SeafileContentManager(ContentsManager):
 
     def get(self, path, content=True, type=None, format=None):
         # get model of folder or file
+        self.log.debug('Current get call for type {0} on {1} with format {2} and content {3}'.format(type, path,format,content))
         if not type:
             try:
                 fileTrue = path.split('/')[-1].split('.')[1]
@@ -285,15 +279,15 @@ class SeafileContentManager(ContentsManager):
                 try:
                     ret =  self.getFileModel(path, content)
                 except:
-                    ret =  self.getDirModel(path, content)
+                    ret =  self.getDirModel(path, content, format)
             else:
                 try:
-                    ret =  self.getDirModel(path, content)
+                    ret =  self.getDirModel(path, content, format)
                 except:
                     ret =  self.getFileModel(path, content)
         else:
             if type == "directory":
-                ret =  self.getDirModel(path, content)
+                ret =  self.getDirModel(path, content, format)
             elif type == "notebook" or type == "file":
                 ret =  self.getFileModel(path, content)
         return ret
@@ -326,7 +320,7 @@ class SeafileContentManager(ContentsManager):
             raise web.HTTPError(400, u'No file content provided.')
 
         self.log.debug("Saving %s", path)
-
+        self.log.debug("Got model: {0}".format(model))
         type = model['type']
 
         filename = path.split('/')[-1]
@@ -337,12 +331,18 @@ class SeafileContentManager(ContentsManager):
                 self.operateOnDir('/' + path,'mkdir')
             elif model['type'] == "notebook":
                 if not self.file_exists('/' + path):
-                    self.fileUpload(filename, filepath, json.dumps(nbformat.v4.new_notebook()), replace=False)
+                    if model['content']=='':
+                        self.fileUpload(filename, filepath, json.dumps(nbformat.v4.new_notebook()), replace=False)
+                    else:
+                        self.fileUpload(filename, filepath, json.dumps(model['content']))
                 else:
                     self.fileUpload(filename, filepath, json.dumps(model['content']))
             elif model['type'] == 'file':
                 if not self.file_exists('/' + path):
-                    self.operateOnFile('/' + path, 'create')
+                    if model['content']=='':
+                        self.operateOnFile(filePath='/' + path, action='create')
+                    else:
+                        self.fileUpload(filename, filepath, str.encode(model['content']))
                 else:
                     self.fileUpload(filename, filepath, str.encode(model['content']))
         except web.HTTPError:
@@ -398,10 +398,9 @@ class SeafileContentManager(ContentsManager):
             raise web.HTTPError(409, 'File aready exists: {0}'.format(new_path))
 
         new_filename = new_path.split('/')[-1]
+        res = self.operateOnFile(filePath='/' + old_path, action='rename', params=[['newname', new_filename]])
 
-        res = self.operateOnFile(old_path, 'rename', [['newname', new_path]])
-
-        if res.status_code in [301, 404]:
+        if res.status_code in [200, 301, 404]:
             return
         else:
             raise web.HTTPError(500, 'Operation failed, returned {0}'.format(res.status_code))

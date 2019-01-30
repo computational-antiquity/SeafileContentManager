@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime
 import os
 import sys
 import requests
@@ -9,9 +9,9 @@ from tornado import web
 
 from notebook.services.contents.checkpoints import Checkpoints, GenericCheckpointsMixin
 
-from .seamanager import SeafileContentManager
+from .seafilemixin import getConnection
 
-class SeafileCheckpoints(SeafileContentManager, GenericCheckpointsMixin):
+class SeafileCheckpoints(GenericCheckpointsMixin, Checkpoints):
     """
     A replacement Checkpoints Manager for Jupyter Notebooks to use the SeaFile
     Commit History.
@@ -22,14 +22,31 @@ class SeafileCheckpoints(SeafileContentManager, GenericCheckpointsMixin):
         SEAFILE_LIBRARY: Library name, numerical ID is determined automatically for API calls
 
     """
-    def __init__(self):
-        SeafileContentManager.__init__(self)
+    def __init__(self, *args, **kwargs ):
+        retVals = getConnection()
+
+        self.seafileURL=retVals[0]
+        self.authHeader=retVals[1]
+        self.libraryID=retVals[2]
+        self.libraryName=retVals[3]
+        self.serverInfo=retVals[4]
+
+    def baseURL(self, apiVersion='/api2'):
+        # allows to use both API versions
+        return self.seafileURL + apiVersion +  '/repos/{0}'.format(self.libraryID)
+
+    def makeRequest(self, apiPath, apiVersion='/api2'):
+        # general GET requests form
+        url = self.baseURL(apiVersion) + apiPath
+        res = requests.get(url, headers = self.authHeader)
+        return res
 
     def getRevision(self, checkpoint_id, path):
-        reqResult = self.makeRequest('file/revision/?p={0}\&commit_id={1}'.format(path, checkpoint_id))
+        reqResult = self.makeRequest('/file/revision/?p={0}&commit_id={1}'.format(path, checkpoint_id))
         if reqResult.status_code in [400,404]:
             raise web.HTTPError(reqResult.status_code, u"Cannot find checkpoint %s for path %s" % (checkpoint_id, path))
-        return reqResult
+        fileData = requests.get(reqResult.json())
+        return fileData
 
     # DUMMY METHODS: We use Seafiles internal commit history and have no active
     # checkpointing
@@ -38,7 +55,7 @@ class SeafileCheckpoints(SeafileContentManager, GenericCheckpointsMixin):
         """ -> checkpoint model"""
         ret = {
             'id':'autocheckpointing',
-            'last_modified':datetime.datetime.now()
+            'last_modified':datetime.now()
         }
         return ret
 
@@ -46,7 +63,7 @@ class SeafileCheckpoints(SeafileContentManager, GenericCheckpointsMixin):
         """ -> checkpoint model"""
         ret = {
             'id':'autocheckpointing',
-            'last_modified':datetime.datetime.now()
+            'last_modified':datetime.now()
         }
         return ret
 
@@ -79,17 +96,20 @@ class SeafileCheckpoints(SeafileContentManager, GenericCheckpointsMixin):
         default just does one per file
         """
         ret = []
+        if not path.startswith('/'):
+            path = '/' + path
         reqResult = self.makeRequest('/file/history/?path={0}'.format(path),apiVersion='/api/v2.1').json()
         try:
             checkpoints = reqResult['data']
         except:
-            raise web.HTTPError(404, 'Cannot obtain checkpoints for {0}'.format(path))
+            self.log.debug('Cannot obtain checkpoints for {0}'.format(path))
+            return []
         for elem in checkpoints:
             timestamp = ''.join(elem['ctime'].rsplit(':', 1))
             ret.append(
                 {
                     'id':elem['commit_id'],
-                    'last_modified': datetime.datetime.strptime(timestamp,'%Y-%m-%dT%H:%M:%S%z')
+                    'last_modified': datetime.strptime(timestamp,'%Y-%m-%dT%H:%M:%S%z')
                 }
             )
         return ret
