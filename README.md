@@ -36,6 +36,16 @@ Export the following environment variables
 - SEAFILE_ACCESS_TOKEN: Your access token
 - SEAFILE_LIBRARY: The name of the library, where all
 
+e.g. by having a file `env` in your testing folder (don't forget to add it to gitignore!)
+with the following content
+```bash
+#!/bin/bash
+export SEAFILE_URL=https://my.seafile.instance
+export SEAFILE_LIBRARY=notebooks
+export SEAFILE_ACCESS_TOKEN=12341234124124
+```
+and then sourcing the file (`source testing/env`) before running the command below.
+
 To start Jupyter notebook from the activated environment run
 ```
 jupyter notebook \
