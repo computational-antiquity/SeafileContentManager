@@ -409,7 +409,7 @@ class SeafileContentManager(ContentsManager):
             raise web.HTTPError(409, 'File aready exists: {0}'.format(new_path))
 
         new_filename = new_path.split('/')[-1]
-        res = self.operateOnFile(filePath='/' + old_path, action='rename', params=[['newname', new_filename]])
+        res = self.operateOnFile(filePath='/' + new_path, action='rename', params=[['newname', new_filename]])
 
         if res.status_code in [200, 301, 404]:
             return
