@@ -1,3 +1,6 @@
+#! python3
+# -*- coding: utf-8 -*-
+
 from datetime import datetime
 import os
 import sys
@@ -46,6 +49,7 @@ class SeafileCheckpoints(GenericCheckpointsMixin, Checkpoints):
         if reqResult.status_code in [400,404]:
             raise web.HTTPError(reqResult.status_code, u"Cannot find checkpoint %s for path %s" % (checkpoint_id, path))
         fileData = requests.get(reqResult.json())
+        fileData.encoding = fileData.apparent_encoding
         return fileData
 
     # DUMMY METHODS: We use Seafiles internal commit history and have no active
