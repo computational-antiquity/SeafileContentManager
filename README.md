@@ -1,8 +1,10 @@
 # SeafileContentManager
 A custom ContentManger for Jupyter Notebooks based on [Seafiles WebAPI](https://manual.seafile.com/develop/web_api_v2.1.html) following the notes on [Custom ContentManagers](https://jupyter-notebook.readthedocs.io/en/stable/extending/contents.html#testing).
 
+The ContentManger works for both Jupyter Notebook and Lab. Checkpoints for files, folders and notebooks are are based on the Seafile [Commit History](https://www.seafile.com/en/help/snapshot/). Thus, checkpoints are available for a predefined period of time ('retention period', e.g. 30 days, can also be infinite, see [here](https://www.seafile.com/en/help/history_setting/)).
+
 ## Status
-Currently in active development.
+Currently under active development.
 
 What works?
 - Folder view
@@ -12,9 +14,7 @@ What works?
 - Download
 - Duplicate
 - Renaming
-
-What is not working?
-- Moving files: Most likely an error in the source path definition
+- Moving files
 
 ## Testing
 
@@ -46,6 +46,8 @@ export SEAFILE_ACCESS_TOKEN=12341234124124
 ```
 and then sourcing the file (`source testing/env`) before running the command below.
 
+### Jupyter Notebook
+
 To start Jupyter notebook from the activated environment run
 ```
 jupyter notebook \
@@ -55,3 +57,16 @@ jupyter notebook \
 ```
 This should start Jupyter notebooks with the Seafile API
 contents and checkpoints manager.  
+
+### JupyterLab
+To use the ContentManger with Jupyter Lab, create a settings file with the following content
+```python
+from SeafileContentManager import SeafileContentManager, SeafileCheckpoints
+c = get_config()
+c.NotebookApp.contents_manager_class = SeafileContentManager
+c.ContentsManager.checkpoints_class = SeafileCheckpoints
+```
+and run
+```
+jupyter-lab --config /path/to/config/jupyter_notebook_config.py --debug
+```
