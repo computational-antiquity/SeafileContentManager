@@ -409,11 +409,22 @@ class SeafileContentManager(ContentsManager):
             raise web.HTTPError(409, 'File aready exists: {0}'.format(new_path))
 
         new_filename = new_path.split('/')[-1]
-        res = self.operateOnFile(filePath='/' + new_path, action='rename', params=[['newname', new_filename]])
+        old_filename = old_path.split('/')[-1]
+
+        new_filepath = '/'.join(new_path.split('/')[:-1])
+        old_filepath = '/'.join(old_path.split('/')[:-1])
+
+        if new_filename != old_filename:
+            res = self.operateOnFile(filePath='/' + old_path, action='rename', params=[['newname', new_filename]])
+        elif new_filepath != old_filepath and new_filename == old_filename:
+            res = self.operateOnFile(filePath='/' + old_path, action='move', params=[['dst_dir',new_filepath],['dst_repo',self.libraryID]])
+        else:
+            pass
 
         if res.status_code in [200, 301, 404]:
             return
         else:
+            self.log.error('Error saving file {0} in path {1}'.format(new_filename,new_path))
             raise web.HTTPError(500, 'Operation failed, returned {0}'.format(res.status_code))
 
     def info_string(self):
