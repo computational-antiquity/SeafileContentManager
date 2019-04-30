@@ -1,3 +1,6 @@
+#! python3
+# -*- coding: utf-8 -*-
+
 from datetime import datetime
 import os
 import sys
@@ -28,7 +31,7 @@ def getConnection():
     res = requests.get(seafileURL + '/api2/auth/ping/', headers = authHeader)
     assert res.text == '"pong"', 'Wrong token {0}, cannot access API at {1}.'.format(token, seafileURL + '/api2')
     # Destination library
-    libraryName = os.environ.get('SEAFILE_LIBRARY', '')
+    libraryName = os.environ.get('SEAFILE_LIBRARY', 'notebooks')
     if libraryName != '':
         pass
     else:

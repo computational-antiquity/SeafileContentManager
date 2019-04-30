@@ -1,3 +1,6 @@
+#! python3
+# -*- coding: utf-8 -*-
+
 from datetime import datetime
 import os
 import sys
@@ -44,6 +47,7 @@ class SeafileContentManager(ContentsManager):
         # general GET requests form
         url = self.baseURL(apiVersion) + apiPath
         res = requests.get(url, headers = self.authHeader)
+        res.encoding = 'utf-8'
         return res
 
     def postRequest(self, apiPath, apiVersion="/api2", action=False, params=False):
@@ -60,6 +64,7 @@ class SeafileContentManager(ContentsManager):
             res = requests.post(url, headers = self.authHeader, data=data)
         else:
             res = requests.post(url, headers = self.authHeader)
+        res.encoding = res.apparent_encoding
         return res
 
     def operateOnFile(self, filePath, action, apiVersion="/api2", params=False):
@@ -115,7 +120,10 @@ class SeafileContentManager(ContentsManager):
         try:
             dirname = dirDetail['name']
         except:
-            dirname = None
+            # feature JupyterLab
+            # in JupyterLab validateContentsModel requires keys to be either string or object, see
+            # https://github.com/jupyterlab/jupyterlab/blob/1aff4190084fd5993d3f7e3ae10b467264df1cd0/packages/services/src/contents/validate.ts#L36
+            dirname = ''
         try:
             dirdate = dirDetail['mtime']
         except:
@@ -123,7 +131,8 @@ class SeafileContentManager(ContentsManager):
         try:
             dirsize = dirDetail['size']
         except:
-            dirsize = None
+            # feature JupyterLab
+            dirsize = ''
 
         retDir = {
             'content': fileList, 'format': dirFormat, 'mimetype': None,
@@ -178,6 +187,7 @@ class SeafileContentManager(ContentsManager):
                 dlLink = self.makeRequest('/file/?p={0}'.format(filePath))
                 if not "error_msg" in dlLink.json():
                     fileDataReq = requests.get(dlLink.json())
+                    fileDataReq.encoding = 'utf-8'
                     try:
                         fileData = fileDataReq.text
                     except:
@@ -342,9 +352,10 @@ class SeafileContentManager(ContentsManager):
                     if model['content']=='':
                         self.operateOnFile(filePath='/' + path, action='create')
                     else:
-                        self.fileUpload(filename, filepath, str.encode(model['content']))
+                        # JupyterLab feature
+                        self.fileUpload(filename, filepath, model['content'])
                 else:
-                    self.fileUpload(filename, filepath, str.encode(model['content']))
+                    self.fileUpload(filename, filepath, model['content'])
         except web.HTTPError:
             raise
         except Exception as e:
