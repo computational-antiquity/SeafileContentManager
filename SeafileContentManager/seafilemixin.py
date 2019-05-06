@@ -38,8 +38,17 @@ def getConnection():
         raise ValueError("Please set the SEAFILE_LIBRARY environment variable")
     resLib = requests.get(seafileURL + '/api2/repos/', headers = authHeader)
     idList = [x['id'] for x in resLib.json() if x['name'] == libraryName]
-    # check if idList has one element = library ID
-    assert 0 < len(idList) < 2, 'Cannot find specified library: {0}'.format(libraryName)
+    try:
+        # check if idList has one element = library ID exists
+        assert 0 < len(idList) < 2, 'Cannot find specified library: {0}'.format(libraryName)
+    except:
+        # if not, create new library with name libraryName
+        data = {'name': libraryName, 'desc': 'new library'}
+        createLib = requests.post(
+            seafileURL + '/api2/repos/',
+            headers = authHeader, data = data
+            )
+        assert createLib.status_code == 200, 'Cannot create new library, error code {0}'.format(createLib.status_code)        
     # general information of seafile instance, not used yet
     serverInfo = requests.get(seafileURL + '/api2/server-info').json()
     # basic settings
