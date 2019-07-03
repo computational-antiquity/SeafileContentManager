@@ -28,23 +28,35 @@ def getConnection():
         with open(BASE + 'settings','r') as file:
             data = file.read()
         seafileURL = data.split(',')[0]
-        token = data.split(',')[1]
-        libraryName = data.split(',')[2]
-        print(seafileURL)
-        print(token)
-        print(libraryName)
     except:
         seafileURL = ''
+
+    try:
+        with open(BASE + 'settings','r') as file:
+            data = file.read()
+        token = data.split(',')[1]
+    except:
         token = ''
+
+    try:
+        with open(BASE + 'settings','r') as file:
+            data = file.read()
+        libraryName = data.split(',')[2]
+    except:
         libraryName = ''
+
+    print(seafileURL)
+    print(token)
+    print(libraryName)
 
     # Seafile URL
     # seafileURL = os.environ.get('SEAFILE_URL', '')
     if seafileURL != '':
         pass
     else:
-        seafileURLBase = subprocess.check_output(["zenity","--entry","--text",'Please provide the basic Seafile URL (e.g. https://repo.seafile.com):',"--title",'Seafile URL?'])
-        seafileURL = seafileURLBase.decode("utf-8").strip()
+        seafileURL = 'https://keeper.mpdl.mpg.de'
+        #seafileURLBase = subprocess.check_output(["zenity","--entry","--text",'Please provide the basic Seafile URL (e.g. https://repo.seafile.com):',"--title",'Seafile URL?','--display=:0'])
+        #seafileURL = seafileURLBase.decode("utf-8").strip()
         #print(seafileURL)
         # os.environ['SEAFILE_URL'] = seafileURL
         # raise ValueError("Please set the SEAFILE_URL environment variable")
@@ -53,7 +65,7 @@ def getConnection():
     if token != '':
         pass
     else:
-        seafileAccount = subprocess.check_output(["zenity","--password","--username","--text",'Please provide your account informations:',"--title",'Seafile Account?']).decode("utf-8")
+        seafileAccount = subprocess.check_output(["zenity","--password","--username","--text",'Please provide your account informations once to obtain an access token:',"--title",'Seafile Account?','--display=:0']).decode("utf-8")
         account = seafileAccount.split('|')
         res = requests.post(seafileURL + "/api2/auth-token/", data={'username': account[0], 'password': account[1]})
         assert res.status_code == 200, 'Could not obtain access token using your credentials.'
