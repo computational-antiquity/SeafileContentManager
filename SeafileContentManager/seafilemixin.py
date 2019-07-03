@@ -27,21 +27,21 @@ def getConnection():
     try:
         with open(BASE + 'settings','r') as file:
             data = file.read()
-        seafileURL = data.split(',')[0]
+        seafileURL = data.split(',')[0].strip()
     except:
         seafileURL = ''
 
     try:
         with open(BASE + 'settings','r') as file:
             data = file.read()
-        token = data.split(',')[1]
+        token = data.split(',')[1].strip()
     except:
         token = ''
 
     try:
         with open(BASE + 'settings','r') as file:
             data = file.read()
-        libraryName = data.split(',')[2]
+        libraryName = data.split(',')[2].strip()
     except:
         libraryName = ''
 
