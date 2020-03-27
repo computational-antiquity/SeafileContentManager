@@ -56,11 +56,11 @@ def getConnection():
             file.write('{0},{1}'.format(seafileURL, token))
 
     # Seafile URL
-    if seafileURL = '':
+    if seafileURL == '':
         raise ValueError("Please set the SEAFILE_URL environment variable")
 
     # Access Token
-    if token = '':
+    if token == '':
         raise ValueError("Please set the SEAFILE_ACCESS_TOKEN environment variable")
 
     authHeader = {"Authorization": "Token {0}".format(token)}
