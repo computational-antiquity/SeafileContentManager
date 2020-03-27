@@ -29,9 +29,10 @@ def getConnection():
         with open(BASE + 'settings', 'r') as file:
             data = file.read()
         seafileURL = data.split(',')[0].strip()
+        addCreds = False
     except:
         seafileURL = os.environ.get('SEAFILE_URL', '')
-        writeData = True
+        addCreds = True
 
     try:
         with open(BASE + 'settings','r') as file:
@@ -51,7 +52,7 @@ def getConnection():
     print(token)
     print(libraryName)
 
-    if writeData:
+    if addCreds:
         with open(BASE + 'settings', 'a') as file:
             file.write('{0},{1}'.format(seafileURL, token))
 
