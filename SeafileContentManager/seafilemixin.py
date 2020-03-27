@@ -30,14 +30,15 @@ def getConnection():
             data = file.read()
         seafileURL = data.split(',')[0].strip()
     except:
-        seafileURL = ''
+        seafileURL = os.environ.get('SEAFILE_URL', '')
+        writeData = True
 
     try:
         with open(BASE + 'settings','r') as file:
             data = file.read()
         token = data.split(',')[1].strip()
     except:
-        token = ''
+        token = os.environ.get('SEAFILE_ACCESS_TOKEN', '')
 
     try:
         with open(BASE + 'settings','r') as file:
@@ -50,30 +51,18 @@ def getConnection():
     print(token)
     print(libraryName)
 
+    if writeData:
+        with open(BASE + 'settings', 'a') as file:
+            file.write('{0},{1}'.format(seafileURL, token))
+
     # Seafile URL
-
-    if seafileURL != '':
-        seafileURL = os.environ.get('SEAFILE_URL', '')
-    else:
-        # seafileURL = 'https://keeper.mpdl.mpg.de'
-        # seafileURLBase = subprocess.check_output(["zenity","--entry","--text",'Please provide the basic Seafile URL (e.g. https://repo.seafile.com):',"--title",'Seafile URL?','--display=:0'])
-        # seafileURL = seafileURLBase.decode("utf-8").strip()
-        #print(seafileURL)
-        # os.environ['SEAFILE_URL'] = seafileURL
+    if seafileURL = '':
         raise ValueError("Please set the SEAFILE_URL environment variable")
-    # Access Token
 
-    if token != '':
-        token = os.environ.get('SEAFILE_ACCESS_TOKEN', '')
-    else:
-        # seafileAccount = subprocess.check_output(["zenity","--password","--username","--text",'Please provide your account informations once to obtain an access token:',"--title",'Seafile Account?','--display=:0']).decode("utf-8")
-        # account = seafileAccount.split('|')
-        # res = requests.post(seafileURL + "/api2/auth-token/", data={'username': account[0], 'password': account[1]})
-        # assert res.status_code == 200, 'Could not obtain access token using your credentials.'
-        # token = res.json()['token']
+    # Access Token
+    if token = '':
         raise ValueError("Please set the SEAFILE_ACCESS_TOKEN environment variable")
-    with open(BASE + 'settings', 'a') as file:
-        file.write('{0},{1}'.format(seafileURL, token))
+
     authHeader = {"Authorization": "Token {0}".format(token)}
     # check Authorization
     res = requests.get(seafileURL + '/api2/auth/ping/', headers=authHeader)
