@@ -50,7 +50,7 @@ def getConnection():
     print(libraryName)
 
     # Seafile URL
-    # seafileURL = os.environ.get('SEAFILE_URL', '')
+    seafileURL = os.environ.get('SEAFILE_URL', '')
     if seafileURL != '':
         pass
     else:
@@ -61,7 +61,7 @@ def getConnection():
         # os.environ['SEAFILE_URL'] = seafileURL
         # raise ValueError("Please set the SEAFILE_URL environment variable")
     # Access Token
-    # token = os.environ.get('SEAFILE_ACCESS_TOKEN','')
+    token = os.environ.get('SEAFILE_ACCESS_TOKEN','')
     if token != '':
         pass
     else:
@@ -80,7 +80,7 @@ def getConnection():
     res = requests.get(seafileURL + '/api2/auth/ping/', headers = authHeader)
     assert res.text == '"pong"', 'Wrong token {0}, cannot access API at {1}.'.format(token, seafileURL + '/api2')
     # Destination library
-    # libraryName = os.environ.get('SEAFILE_LIBRARY', 'notebooks')
+    libraryName = os.environ.get('SEAFILE_LIBRARY', 'notebooks')
     if libraryName != '':
         pass
     else:
