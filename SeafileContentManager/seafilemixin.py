@@ -48,9 +48,9 @@ def getConnection():
     except:
         libraryName = ''
 
-    print(seafileURL)
-    print(token)
-    print(libraryName)
+    # print(seafileURL)
+    # print(token)
+    # print(libraryName)
 
     if addCreds:
         with open(BASE + 'settings', 'a') as file:

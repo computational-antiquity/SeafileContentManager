@@ -25,7 +25,7 @@ class SeafileCheckpoints(GenericCheckpointsMixin, Checkpoints):
         SEAFILE_LIBRARY: Library name, numerical ID is determined automatically for API calls
 
     """
-    def __init__(self, *args, **kwargs ):
+    def __init__(self, *args, **kwargs):
         retVals = getConnection()
 
         self.seafileURL=retVals[0]
