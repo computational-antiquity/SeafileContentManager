@@ -23,9 +23,6 @@ class SeafileFS(SeafileContentManager):
         self.libraryName = retVals[3]
         self.serverInfo = retVals[4]
 
-    def _getCWD(self):
-        pass
-
     def listdir_attrib(self, path=None):
         """List dir content with attributes."""
         files = self.makeRequest('/dir/?p={0}'.format(path)).json()
