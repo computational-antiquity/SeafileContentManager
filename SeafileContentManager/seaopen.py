@@ -61,7 +61,19 @@ class SeafileFS(SeafileContentManager):
         return fileNames
 
     def mkdir(self, path=None):
-        pass
+        model = {
+            'content': None,
+            'format': None,
+            'mimetype': None,
+            'type': 'directory',
+            'name': path.split('/')[-1],
+            'writable': True,
+            'last_modified': datetime.now(),
+            'path': path,
+            'created': datetime.now(),
+            'size': '',
+            }
+        self.save(model, path)
 
     def isfile(self, path=None):
         """Return file True or False."""
@@ -78,15 +90,40 @@ class SeafileFS(SeafileContentManager):
         return False
 
     def open(self, path, mode='r'):
-        """Open file as byte or str object."""
+        """
+        Open file as byte or str object.
 
-        if mode in ('w','w+'):
+        Possible modes are
+            r (default): read existing file
+            a: append to existing file or create new
+            w: overwrite existing or create new
+            b: open as binary data
+
+            adding a + sign allows to also read in
+            a+: read starts at end (not yet implemented)
+            r+: read starts at beginning
+            w+: truncate
+        """
+        if mode in ['r', 'r+', 'b', 'r+b']:
+            if self.file_exists(path):
+                return SeafileFileModel(path, mode)
+            raise FileNotFoundError(
+                errno.ENOENT, os.strerror(errno.ENOENT), path
+            )
+        if mode in ('x', 'x+', 'x+b'):
+            if self.file_exists(path):
+                raise FileExistsError(
+                    errno.EEXIST, os.strerror(errno.EEXIST), path
+                )
             return SeafileFileModel(path, mode)
-        elif self.file_exists(path):
+        if mode in ['a', 'a+', 'a+b', 'w', 'w+', 'w+b']:
             return SeafileFileModel(path, mode)
-        raise FileNotFoundError(
-            errno.ENOENT, os.strerror(errno.ENOENT), path
-        )
+        if mode == 'b+':
+            raise ValueError(
+                "Must have exactly one of create/read/write/append\
+                 mode and at most one plus: '{0}'".format(mode)
+            )
+        raise ValueError("invalid mode: '{0}'".format(mode))
 
 
 class SeafileFileModel(SeafileContentManager):
@@ -100,40 +137,71 @@ class SeafileFileModel(SeafileContentManager):
         self.libraryID = retVals[2]
         self.libraryName = retVals[3]
         self.serverInfo = retVals[4]
+        self.rawModel = {
+            'content': '',
+            'format': None,
+            'mimetype': 'text/plain',
+            'type': 'file',
+            'name': path.split('/')[-1],
+            'writable': True,
+            'last_modified': datetime.now(),
+            'path': path,
+            'created': datetime.now(),
+            'size': '',
+            }
 
         self.filePath = path
         self.fileMode = mode
-        if self.fileMode in ('w', 'w+'):
-            # TODO: Create empty file model
-            pass
-        else:
+        if self.fileMode == 'r':
             self.fileModel = self.getFileModel(path)
+        elif self.fileMode == 'x':
+            self.fileModel = self.rawModel
+        elif self.fileMode in ['a', 'a+', 'a+b', 'w', 'w+', 'w+b']:
+            if self.file_exists(path):
+                self.fileModel = self.getFileModel(path)
+                if self.fileModel in ['w', 'w+', 'w+b']:
+                    contentDict = {
+                        'content': ''
+                    }
+                    self.fileModel.update(contentDict)
+                    self.save(self.fileModel, self.filePath)
+            else:
+                self.fileModel = self.rawModel
 
     def read(self):
         """Read file from Seafile API."""
-        if self.fileMode in ('a','r', 't', 'rt'):
+        if self.fileMode in ('r', 'a+', 'w+'):
             return self.fileModel['content']
-        if self.fileMode in ('b', 'b+', 'r+b'):
+        if self.fileMode in ('b', 'r+b', 'a+b', 'w+b'):
             return self.fileModel['content'].encode()
+        if self.fileMode in ('w', 'x'):
+            raise ValueError(
+                "Can not read in '{0}' file mode".format(self.fileMode)
+            )
 
     def readlines(self):
-        return self.fileModel['content'].splitlines(True)
+        """Read all lines on file."""
+        lines = self.fileModel['content'].splitlines(True)
+        if self.fileMode in ('b', 'r+b', 'a+b', 'w+b', 'x+b'):
+            return [x.encode() for x in lines]
+        return lines
 
     def write(self, content):
-        if self.fileMode == 'a':
+        """Write file to Seafile backend."""
+        if self.fileMode in ('r+', 'r+b', 'a', 'a+', 'a+b'):
             oldcontent = self.fileModel['content']
             contentDict = {
                 'content': oldcontent + content
             }
             self.fileModel.update(contentDict)
-
             self.save(self.fileModel, self.filePath)
-        elif self.fileMode in ('w', 'w+'):
+        elif self.fileMode in ('x+', 'x+b', 'w', 'w+', 'w+b'):
             contentDict = {
                 'content': content
             }
             self.fileModel.update(contentDict)
-
             self.save(self.fileModel, self.filePath)
-        else:
-            raise OSError('Not implemented.')
+        elif self.fileMode in ('r', 'b', 'x'):
+            raise ValueError("Can not write in '{0}' file mode.".format(
+                self.fileMode
+            ))
