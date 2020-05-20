@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import errno
 import os
+import io
 from datetime import datetime
 
 from .seamanager import SeafileContentManager
@@ -97,14 +98,19 @@ class SeafileFS(SeafileContentManager):
             r (default): read existing file
             a: append to existing file or create new
             w: overwrite existing or create new
+            x: open for exclusive creation
             b: open as binary data
 
-            adding a + sign allows to also read in
+            adding a '+' sign allows to also read in
             a+: read starts at end (not yet implemented)
             r+: read starts at beginning
             w+: truncate
+            x+: read starts at beginning
+
+            adding a 'b' opens and writes binary data, however
+            internaly the data is always saved as text
         """
-        if mode in ['r', 'r+', 'b', 'r+b']:
+        if mode in ['r', 'r+', 'b', 'rb', 'r+b']:
             if self.file_exists(path):
                 return SeafileFileModel(path, mode)
             raise FileNotFoundError(
@@ -152,14 +158,15 @@ class SeafileFileModel(SeafileContentManager):
 
         self.filePath = path
         self.fileMode = mode
-        if self.fileMode == 'r':
+        if self.fileMode in ['r', 'r+', 'rb', 'r+b', 'b']:
             self.fileModel = self.getFileModel(path)
-        elif self.fileMode == 'x':
+        elif self.fileMode in ['x', 'x+', 'x+b']:
             self.fileModel = self.rawModel
+            self.save(self.fileModel, self.filePath)
         elif self.fileMode in ['a', 'a+', 'a+b', 'w', 'w+', 'w+b']:
             if self.file_exists(path):
                 self.fileModel = self.getFileModel(path)
-                if self.fileModel in ['w', 'w+', 'w+b']:
+                if self.fileMode in ['w', 'w+', 'w+b']:
                     contentDict = {
                         'content': ''
                     }
@@ -170,38 +177,52 @@ class SeafileFileModel(SeafileContentManager):
 
     def read(self):
         """Read file from Seafile API."""
-        if self.fileMode in ('r', 'a+', 'w+'):
-            return self.fileModel['content']
-        if self.fileMode in ('b', 'r+b', 'a+b', 'w+b'):
-            return self.fileModel['content'].encode()
-        if self.fileMode in ('w', 'x'):
-            raise ValueError(
-                "Can not read in '{0}' file mode".format(self.fileMode)
+        if self.fileMode in ('a', 'w', 'x'):
+            raise io.UnsupportedOperation(
+                errno.EOPNOTSUPP,
+                os.strerror(errno.EOPNOTSUPP) +\
+                 " in '{0}' mode".format(self.fileMode)
             )
+        if self.fileMode in ('r', 'r+', 'a+', 'w+', 'x+'):
+            return self.fileModel['content']
+        if self.fileMode in ('b', 'rb', 'r+b', 'a+b', 'w+b', 'x+b'):
+            return self.fileModel['content'].encode()
+
 
     def readlines(self):
         """Read all lines on file."""
+        if self.fileMode in ('a', 'w', 'x'):
+            raise io.UnsupportedOperation(
+                errno.EOPNOTSUPP,
+                os.strerror(errno.EOPNOTSUPP) +\
+                 " in '{0}' mode".format(self.fileMode)
+            )
         lines = self.fileModel['content'].splitlines(True)
-        if self.fileMode in ('b', 'r+b', 'a+b', 'w+b', 'x+b'):
+        if self.fileMode in ('b', 'rb', 'r+b', 'a+b', 'w+b', 'x+b'):
             return [x.encode() for x in lines]
         return lines
 
     def write(self, content):
         """Write file to Seafile backend."""
-        if self.fileMode in ('r+', 'r+b', 'a', 'a+', 'a+b'):
-            oldcontent = self.fileModel['content']
-            contentDict = {
-                'content': oldcontent + content
-            }
-            self.fileModel.update(contentDict)
+        if self.fileMode in ('r', 'rb', 'b'):
+            raise io.UnsupportedOperation(
+                errno.EOPNOTSUPP,
+                os.strerror(errno.EOPNOTSUPP) +\
+                 " in '{0}' mode".format(self.fileMode)
+            )
+        if self.fileMode in ('a', 'a+', 'a+b'):
+            newcontent = self.fileModel['content'] + content
+            self.fileModel.update({'content': newcontent})
             self.save(self.fileModel, self.filePath)
-        elif self.fileMode in ('x+', 'x+b', 'w', 'w+', 'w+b'):
-            contentDict = {
-                'content': content
-            }
-            self.fileModel.update(contentDict)
+            return len(content)
+        if self.fileMode in ('r+', 'r+b'):
+            old = self.fileModel['content'].splitlines()
+            new = content.splitlines()
+            old[0:len(new)] = new
+            self.fileModel.update({'content': '\n'.join(old)})
             self.save(self.fileModel, self.filePath)
-        elif self.fileMode in ('r', 'b', 'x'):
-            raise ValueError("Can not write in '{0}' file mode.".format(
-                self.fileMode
-            ))
+            return len(content)
+        if self.fileMode in ('x', 'x+', 'x+b', 'w', 'w+', 'w+b'):
+            self.fileModel.update({'content': content})
+            self.save(self.fileModel, self.filePath)
+            return len(content)
