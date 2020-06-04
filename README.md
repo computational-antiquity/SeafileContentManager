@@ -4,7 +4,7 @@ A custom ContentManger for Jupyter Notebooks based on [Seafiles WebAPI](https://
 The ContentManger works for both Jupyter Notebook and Lab. Checkpoints for files, folders and notebooks are are based on the Seafile [Commit History](https://www.seafile.com/en/help/snapshot/). Thus, checkpoints are available for a predefined period of time ('retention period', e.g. 30 days, can also be infinite, see [here](https://www.seafile.com/en/help/history_setting/)).
 
 Since for Python IO operations (e.g. `open('file.txt','r') as file`) the underlying file system is used, there is an additional
-drop-in replacement for those operations
+drop-in replacement for those operations (see also the [Example Notebook](./Example/Using_Seafile_Filesystem.ipynb))
 
 ```python3
 from SeafileContentManager import SeafileFS
@@ -16,7 +16,7 @@ file = fs.open('/text.txt','r')
 file.read()
 ```
 
-Ideally, notebooks should be written with this replacement from the start. 
+Ideally, notebooks should be written with this replacement from the start.
 
 ## Status
 Currently under active development.
