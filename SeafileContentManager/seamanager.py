@@ -27,7 +27,6 @@ class SeafileContentManager(ContentsManager):
             e.g. https://sub.domain.com
         SEAFILE_LIBRARY:
             Library name, numerical ID is determined automatically for API calls
-
     """
     @default('checkpoints_class')
     def _checkpoints_class_default(self):
@@ -128,7 +127,7 @@ class SeafileContentManager(ContentsManager):
                     res['mimetype'] = None
                     res['content'] = None
                     fileList.append(res)
-            ## Empty folder have no content, list nothing...
+            # Empty folder have no content, list nothing...
             except:
                 fileList = None
         else:

@@ -10,7 +10,7 @@ from .seafilemixin import getConnection
 
 
 class SeafileFS(SeafileContentManager):
-    """A os-like filesystem manager for Seafile.
+    """An os-like filesystem manager for Seafile.
 
     Maps queries like listdir to calls to the Seafile API.
     """
@@ -180,22 +180,21 @@ class SeafileFileModel(SeafileContentManager):
         if self.fileMode in ('a', 'w', 'x'):
             raise io.UnsupportedOperation(
                 errno.EOPNOTSUPP,
-                os.strerror(errno.EOPNOTSUPP) +\
-                 " in '{0}' mode".format(self.fileMode)
+                os.strerror(errno.EOPNOTSUPP) +
+                " in '{0}' mode".format(self.fileMode)
             )
         if self.fileMode in ('r', 'r+', 'a+', 'w+', 'x+'):
             return self.fileModel['content']
         if self.fileMode in ('b', 'rb', 'r+b', 'a+b', 'w+b', 'x+b'):
             return self.fileModel['content'].encode()
 
-
     def readlines(self):
         """Read all lines on file."""
         if self.fileMode in ('a', 'w', 'x'):
             raise io.UnsupportedOperation(
                 errno.EOPNOTSUPP,
-                os.strerror(errno.EOPNOTSUPP) +\
-                 " in '{0}' mode".format(self.fileMode)
+                os.strerror(errno.EOPNOTSUPP) +
+                " in '{0}' mode".format(self.fileMode)
             )
         lines = self.fileModel['content'].splitlines(True)
         if self.fileMode in ('b', 'rb', 'r+b', 'a+b', 'w+b', 'x+b'):
@@ -207,8 +206,8 @@ class SeafileFileModel(SeafileContentManager):
         if self.fileMode in ('r', 'rb', 'b'):
             raise io.UnsupportedOperation(
                 errno.EOPNOTSUPP,
-                os.strerror(errno.EOPNOTSUPP) +\
-                 " in '{0}' mode".format(self.fileMode)
+                os.strerror(errno.EOPNOTSUPP) +
+                " in '{0}' mode".format(self.fileMode)
             )
         if self.fileMode in ('a', 'a+', 'a+b'):
             newcontent = self.fileModel['content'] + content

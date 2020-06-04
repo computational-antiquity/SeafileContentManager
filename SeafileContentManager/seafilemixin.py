@@ -35,14 +35,14 @@ def getConnection():
         addCreds = True
 
     try:
-        with open(BASE + 'settings','r') as file:
+        with open(BASE + 'settings', 'r') as file:
             data = file.read()
         token = data.split(',')[1].strip()
     except:
         token = os.environ.get('SEAFILE_ACCESS_TOKEN', '')
 
     try:
-        with open(BASE + 'settings','r') as file:
+        with open(BASE + 'settings', 'r') as file:
             data = file.read()
         libraryName = data.split(',')[2].strip()
     except:

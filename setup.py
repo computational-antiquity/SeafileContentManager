@@ -1,18 +1,17 @@
 # -*- coding: utf-8 -*-
 from setuptools import setup, find_packages
 
-try:
-    import pypandoc
-    long_description = pypandoc.convert('README.md', 'rst')
-except(IOError, ImportError):
-    long_description = open('README.md').read()
+from os import path
+this_directory = path.abspath(path.dirname(__file__))
+with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
+    long_description = f.read()
 
 setup(
     # Application name:
     name="SeafileContentManager",
 
     # Version number (initial):
-    version="0.0.1",
+    version="0.1.2",
 
     # Application author details:
     author="Malte Vogl",
@@ -24,11 +23,7 @@ setup(
     # Include additional files into the package
     include_package_data=True,
 
-    # package_data={
-    #     'convert2geojson': ['html/template/*','html/template/css/*']
-    # },
-
-    url='https://github.com/computational-antiquity/convert2geojson/',
+    url='https://github.com/computational-antiquity/SeafileContentManager/',
 
     # Details
 
@@ -36,6 +31,7 @@ setup(
     description="ContentManager using Seafile's WebAPI",
 
     long_description=long_description,
+    long_description_content_type='text/markdown',
 
     classifiers=[
         'Development Status :: 3 - Alpha',
@@ -47,9 +43,8 @@ setup(
     ],
 
     project_urls={
-        'Home': 'https://github.com/computational-antiquity/SeafileContentManager/',
         'Tracker': 'https://github.com/computational-antiquity/SeafileContentManager/issues',
-        'Download': 'https://github.com/computational-antiquity/SeafileContentManager/archive/0.0.2.tar.gz',
+        'Download': 'https://github.com/computational-antiquity/SeafileContentManager/archive/0.1.1.tar.gz',
     },
 
     python_requires='>=3',
@@ -63,4 +58,3 @@ setup(
     test_suite='nose.collector',
     tests_require=['nose'],
 )
-
