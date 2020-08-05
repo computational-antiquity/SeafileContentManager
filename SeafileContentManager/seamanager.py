@@ -39,11 +39,14 @@ class SeafileContentManager(ContentsManager):
         self.authHeader = retVals[1]
         self.libraryID = retVals[2]
         self.libraryName = retVals[3]
-        self.serverInfo = retVals[4]
+        self.seafileMainVs = retVals[4]
 
     def baseURL(self, apiVersion='/api2'):
         """Allow to use both API versions."""
-        return self.seafileURL + apiVersion + '/repos/{0}'.format(self.libraryID)
+        if self.seafileMainVs < 7:
+            return self.seafileURL + apiVersion + '/repos/{0}'.format(self.libraryID)
+        else:
+            return self.seafileURL + '/api/v2.1/via-repo-token'
 
     def makeRequest(self, apiPath, apiVersion='/api2'):
         """Create GET requests form."""

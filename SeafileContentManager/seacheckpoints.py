@@ -32,7 +32,6 @@ class SeafileCheckpoints(GenericCheckpointsMixin, Checkpoints):
         self.authHeader = retVals[1]
         self.libraryID = retVals[2]
         self.libraryName = retVals[3]
-        self.serverInfo = retVals[4]
 
     def baseURL(self, apiVersion='/api2'):
         """Create baseurl for selected api."""
