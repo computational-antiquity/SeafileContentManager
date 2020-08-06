@@ -91,44 +91,53 @@ class SeafileContentManager(ContentsManager):
             )
         return res
 
+    def convertDataModel(self, path, inModel):
+        res = {}
+        res['last_modified'] = datetime.fromtimestamp(
+            inModel['mtime']
+            )
+        res['name'] = inModel['name']
+        filepath = path + '/' + inModel['name']
+        res['path'] = filepath.lstrip('/')
+        if inModel['permission'] == 'rw':
+            res['writeable'] = True
+        else:
+            res['writeable'] = False
+        if inModel['type'] == 'file':
+            res['size'] = inModel['size']
+            try:
+                fileType = res['name'].split('.')[1]
+                if fileType == 'ipynb':
+                    res['type'] = 'notebook'
+                else:
+                    res['type'] = 'file'
+            except:
+                res['type'] = 'file'
+        elif inModel['type'] == 'dir':
+            res['type'] = 'directory'
+        res['format'] = None
+        res['mimetype'] = None
+        res['content'] = None
+        return res
+
+
     def getDirModel(self, path, content=True):  # , format=True):
         """Return dir model with folder content as models without content."""
-        files = self.makeRequest('/dir/?p={0}'.format(path)).json()
-        dirDetail = self.makeRequest(
-            '/dir/detail/?path={0}'.format(path),
-            apiVersion='/api/v2.1'
-            ).json()
+        if self.seafileMainVs >= 7:
+            files =  self.makeRequest('/dir/?p={0}'.format(path)).json()['dirent_list']
+            dirDetail = {}
+        else:
+            files = self.makeRequest('/dir/?p={0}'.format(path)).json()
+            dirDetail = self.makeRequest(
+                '/dir/detail/?path={0}'.format(path),
+                apiVersion='/api/v2.1'
+                ).json()
         if content:
             dirFormat = 'json'
             try:
                 fileList = []
                 for fileDict in files:
-                    res = {}
-                    res['last_modified'] = datetime.fromtimestamp(
-                        fileDict['mtime']
-                        )
-                    res['name'] = fileDict['name']
-                    filepath = path + '/' + fileDict['name']
-                    res['path'] = filepath.lstrip('/')
-                    if fileDict['permission'] == 'rw':
-                        res['writeable'] = True
-                    else:
-                        res['writeable'] = False
-                    if fileDict['type'] == 'file':
-                        res['size'] = fileDict['size']
-                        try:
-                            fileType = res['name'].split('.')[1]
-                            if fileType == 'ipynb':
-                                res['type'] = 'notebook'
-                            else:
-                                res['type'] = 'file'
-                        except:
-                            res['type'] = 'file'
-                    elif fileDict['type'] == 'dir':
-                        res['type'] = 'directory'
-                    res['format'] = None
-                    res['mimetype'] = None
-                    res['content'] = None
+                    res = self.convertDataModel(path, fileDict)
                     fileList.append(res)
             # Empty folder have no content, list nothing...
             except:
