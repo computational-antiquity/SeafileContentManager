@@ -76,15 +76,15 @@ def getConnection():
         seafileURL = os.environ.get('SEAFILE_URL', '')
         token = os.environ.get('SEAFILE_ACCESS_TOKEN', '')
         libraryName = os.environ.get('SEAFILE_LIBRARY', 'notebooks')
-        checkToken(seafileURL, token)
         authHeader = {"Authorization": "Token {0}".format(token)}
         seafileVs = getSeafileVS(seafileURL)
         if seafileVs < 7:
+            checkToken(seafileURL, token)
             libraryID = getLibraryID(seafileURL, token, libraryName)
         else:
             libraryID = ''
         with open(BASE + 'settings', 'w') as file:
-            file.write('{0}, {1}, {2}'.format(seafileURL, token, libraryName))
+            file.write('{0},{1},{2}'.format(seafileURL, token, libraryName))
         return (seafileURL, authHeader, libraryID, libraryName, seafileVs)
 
     try:
