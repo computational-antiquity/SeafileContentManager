@@ -173,6 +173,7 @@ class SeafileContentManager(ContentsManager):
 
     def getFileModel(self, filePath, content=True):
         """Return file model."""
+
         file = self.makeRequest('/file/detail/?p={0}'.format(filePath)).json()
 
         retFile = {}
