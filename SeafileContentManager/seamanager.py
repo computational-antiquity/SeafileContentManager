@@ -171,6 +171,50 @@ class SeafileContentManager(ContentsManager):
             }
         return retDir
 
+
+    def getFileContent(self, filePath, fileType, content):
+        retFile = {}
+        retFile['format'] = None
+        mimeType = ('text/plain', None, 'application/octet-stream')
+        if content == False:
+            retFile['content'] = None
+            if fileType in ['txt', 'md']:
+                retFile['mimetype'] = mimeType[0]
+            elif fileType == 'ipynb':
+                retFile['mimetype'] = mimeType[1]
+            else:
+                retFile['mimetype'] = mimeType[3]
+        else:
+            fileData = ""
+            dlLink = self.makeRequest('/file/?p={0}'.format(filePath))
+            if "error_msg" not in dlLink.json():
+                fileDataReq = requests.get(dlLink.json())
+                fileDataReq.encoding = 'utf-8'
+                try:
+                    if fileType in ['txt', 'md']:
+                        retFile['format'] = 'text'
+                        retFile['mimetype'] = mimeType[0]
+                        fileData = fileDataReq.text
+                    elif fileType == 'ipynb':
+                        retFile['format'] = 'json'
+                        retFile['mimetype'] = mimeType[1]
+                        fileData = nbformat.from_dict(fileDataReq.json())
+                    else:
+                        retFile['format'] = 'base64'
+                        retFile['mimetype'] = mimeType[2]
+                        fileData = fileDataReq.content
+                    retFile['content'] = fileData
+                except:
+                    raise web.HTTPError(
+                        404,
+                        'Can not get data content: {0}.\n\
+                        Got response {1}.'.format(
+                            filePath, fileDataReq.text)
+                        )
+                    retFile['content'] = ''
+        return retFile
+
+
     def getFileModel(self, filePath, content=True):
         """Return file model."""
 
@@ -209,71 +253,10 @@ class SeafileContentManager(ContentsManager):
         except:
             retFile['writable'] = True
 
-        if fileType in ['txt', 'md']:
-            retFile['format'] = None
-            retFile['mimetype'] = 'text/plain'
-            if content:
-                retFile['format'] = 'text'
-                fileData = ""
-                dlLink = self.makeRequest('/file/?p={0}'.format(filePath))
-                if "error_msg" not in dlLink.json():
-                    fileDataReq = requests.get(dlLink.json())
-                    fileDataReq.encoding = 'utf-8'
-                    try:
-                        fileData = fileDataReq.text
-                    except:
-                        raise web.HTTPError(
-                            404,
-                            'Can not get data content: {0}.\n\
-                            Got response {1}.'.format(
-                                filePath, fileDataReq.text)
-                            )
-                retFile['content'] = fileData
-            else:
-                retFile['content'] = None
-        elif fileType == 'ipynb':
-            retFile['type'] = 'notebook'
-            retFile['format'] = None
-            retFile['mimetype'] = None
-            if content:
-                retFile['format'] = 'json'
-                fileData = ""
-                dlLink = self.makeRequest('/file/?p={0}'.format(filePath))
-                if "error_msg" not in dlLink.json():
-                    fileDataReq = requests.get(dlLink.json())
-                    try:
-                        fileData = nbformat.from_dict(fileDataReq.json())
-                    except:
-                        raise web.HTTPError(
-                            404,
-                            'Can not get data content: {0}.\n\
-                            Got response {1}.'.format(
-                                filePath, fileDataReq.content)
-                        )
-                retFile['content'] = fileData
-            else:
-                retFile['content'] = None
-        else:
-            retFile['format'] = None
-            retFile['mimetype'] = 'application/octet-stream'
-            if content:
-                retFile['format'] = 'base64'
-                fileData = ""
-                dlLink = self.makeRequest('/file/?p={0}'.format(filePath))
-                if "error_msg" not in dlLink.json():
-                    fileDataReq = requests.get(dlLink.json())
-                    try:
-                        fileData = fileDataReq.content
-                    except:
-                        raise web.HTTPError(
-                            404,
-                            'Can not get data content: {0}.\n\
-                            Got response {1}.'.format(
-                                filePath, fileDataReq.text)
-                            )
-                retFile['content'] = fileData
-            else:
-                retFile['content'] = None
+        retFile.update(
+            self.getFileContent(filePath, fileType, content)
+            )
+            
         return retFile
 
     def dir_exists(self, path):
