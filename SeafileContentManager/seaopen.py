@@ -23,6 +23,7 @@ class SeafileFS(SeafileContentManager):
         self.libraryID = retVals[2]
         self.libraryName = retVals[3]
         self.seafileMainVs = retVals[4]
+        self.useLibToken = retVals[5]
 
     def listdir_attrib(self, path=None):
         """List dir content with attributes."""
@@ -143,7 +144,7 @@ class SeafileFileModel(SeafileContentManager):
         self.libraryID = retVals[2]
         self.libraryName = retVals[3]
         self.seafileMainVs = retVals[4]
-        
+
         self.rawModel = {
             'content': '',
             'format': None,

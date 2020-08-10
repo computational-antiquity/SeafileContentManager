@@ -70,7 +70,7 @@ def getConnection():
     Routines to establish the connection to the Seafile Instance,
     check credentials, and retrieve the library ID.
     """
-
+    useLibToken = os.environ.get('SEAFILE_USE_LIBRARY_TOKEN', False)
     resetCreds = os.environ.get('SEAFILE_CREDENTIALS_RESET', False)
     if resetCreds == 'True':
         seafileURL = os.environ.get('SEAFILE_URL', '')
@@ -78,14 +78,14 @@ def getConnection():
         libraryName = os.environ.get('SEAFILE_LIBRARY', 'notebooks')
         authHeader = {"Authorization": "Token {0}".format(token)}
         seafileVs = getSeafileVS(seafileURL)
-        if seafileVs < 7:
+        if seafileVs < 7 or useLibToken == 'True':
             checkToken(seafileURL, token)
             libraryID = getLibraryID(seafileURL, token, libraryName)
         else:
             libraryID = ''
         with open(BASE + 'settings', 'w') as file:
             file.write('{0},{1},{2}'.format(seafileURL, token, libraryName))
-        return (seafileURL, authHeader, libraryID, libraryName, seafileVs)
+        return (seafileURL, authHeader, libraryID, libraryName, seafileVs, useLibToken)
 
     try:
         libraryName = ''
@@ -109,9 +109,9 @@ def getConnection():
             file.write('{0},{1},{2}'.format(seafileURL, token, libraryName))
     authHeader = {"Authorization": "Token {0}".format(token)}
     seafileVs = getSeafileVS(seafileURL)
-    if seafileVs < 7:
+    if seafileVs < 7 or useLibToken == 'True':
         checkToken(seafileURL, token)
         libraryID = getLibraryID(seafileURL, token, libraryName)
     else:
         libraryID = ''
-    return (seafileURL, authHeader, libraryID, libraryName, seafileVs)
+    return (seafileURL, authHeader, libraryID, libraryName, seafileVs, useLibToken)

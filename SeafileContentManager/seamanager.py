@@ -40,10 +40,11 @@ class SeafileContentManager(ContentsManager):
         self.libraryID = retVals[2]
         self.libraryName = retVals[3]
         self.seafileMainVs = retVals[4]
+        self.useLibToken = retVals[5]
 
     def baseURL(self, apiVersion='/api2'):
         """Allow to use both API versions."""
-        if self.seafileMainVs < 7:
+        if self.seafileMainVs < 7 or self.useLibToken:
             return self.seafileURL + apiVersion + '/repos/{0}'.format(self.libraryID)
         else:
             return self.seafileURL + '/api/v2.1/via-repo-token'
@@ -120,10 +121,9 @@ class SeafileContentManager(ContentsManager):
         res['content'] = None
         return res
 
-
     def getDirModel(self, path, content=True):  # , format=True):
         """Return dir model with folder content as models without content."""
-        if self.seafileMainVs >= 7:
+        if self.seafileMainVs >= 7 and not self.useLibToken:
             files =  self.makeRequest('/dir/?p={0}'.format(path)).json()['dirent_list']
             dirDetail = {}
         else:
@@ -171,12 +171,12 @@ class SeafileContentManager(ContentsManager):
             }
         return retDir
 
-
     def getFileContent(self, filePath, fileType, content):
+        """Get content of file."""
         retFile = {}
         retFile['format'] = None
         mimeType = ('text/plain', None, 'application/octet-stream')
-        if content == False:
+        if content is False:
             retFile['content'] = None
             if fileType in ['txt', 'md']:
                 retFile['mimetype'] = mimeType[0]
@@ -214,10 +214,8 @@ class SeafileContentManager(ContentsManager):
                     retFile['content'] = ''
         return retFile
 
-
     def getFileModel(self, filePath, content=True):
         """Return file model."""
-
         file = self.makeRequest('/file/detail/?p={0}'.format(filePath)).json()
 
         retFile = {}
@@ -256,7 +254,7 @@ class SeafileContentManager(ContentsManager):
         retFile.update(
             self.getFileContent(filePath, fileType, content)
             )
-            
+
         return retFile
 
     def dir_exists(self, path):
@@ -337,6 +335,7 @@ class SeafileContentManager(ContentsManager):
 
     def fileUpload(self, filename, filepath, modelContent, replace=True):
         """Wrap uploads.
+           
         Wrapper for upload requests, first generates an upload link, then
         posts file details and model content.
         """
